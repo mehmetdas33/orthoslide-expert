@@ -172,7 +172,10 @@ export default function CropModal({ file, onConfirm, onCancel }) {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
         <div style={{ textAlign: 'center' }}>
           <p style={{ color: 'white', fontSize: 15, fontWeight: 700, margin: 0 }}>Sefalometri Kırpma</p>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginTop: 4 }}>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: 12, marginTop: 6, background: 'rgba(255,180,0,0.1)', border: '1px solid rgba(255,180,0,0.25)', borderRadius: 8, padding: '6px 14px' }}>
+            Burun ucu ve çene ucu görünecek şekilde kırpın, ardından bu noktaları işaretleyeceksiniz.
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.3)', fontSize: 11, marginTop: 4 }}>
             Köşe tutamaçları ile alanı ayarlayın · kutuyu taşımak için içine sürükleyin
           </p>
         </div>

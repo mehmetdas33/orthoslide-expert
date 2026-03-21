@@ -19,8 +19,8 @@ const IMAGE_SLOTS = [
   { key: 'lower_occlusal',    label: 'Alt Oklüzal',    slideInfo: 'Slayt 11 A', group: 'Oklüzal' },
   // Radyografi
   { key: 'panoramic',         label: 'Panoramik',      slideInfo: 'Slayt 10',   group: 'Radyografi' },
-  { key: 'cephalometric',     label: 'Sefalometrik',   slideInfo: 'S12-17',     group: 'Radyografi' },
-  { key: 'ceph_raw',          label: 'Sef. Ham',       slideInfo: 'Slayt 18',   group: 'Radyografi' },
+  { key: 'cephalometric',     label: 'Sefalometri(Çizili)', slideInfo: 'S12-17',     group: 'Radyografi' },
+  { key: 'ceph_raw',          label: 'Sefalometri(Ham)',    slideInfo: 'Slayt 18',   group: 'Radyografi' },
   { key: 'wrist',             label: 'El-Bilek',       slideInfo: 'Slayt 19',   group: 'Radyografi' },
 ]
 
