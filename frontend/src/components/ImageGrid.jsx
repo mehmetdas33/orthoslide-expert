@@ -3,7 +3,7 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 // ── Slot definitions  (key must match IMAGE_SLOT_MAP in pptx_engine.py) ──────
 const IMAGE_SLOTS = [
   // Kapak
-  { key: 'cover',             label: 'Kapak',          slideInfo: 'Slayt 1',    group: 'Kapak' },
+  { key: 'cover',             label: 'Kapak',          slideInfo: 'Slayt 1 · 3/4 Gülen', group: 'Kapak' },
   // Ekstraoral
   { key: 'frontal',           label: 'Cephe',          slideInfo: 'Slayt 3',    group: 'Ekstraoral' },
   { key: 'frontal_smile',     label: 'Cephe Gülen',    slideInfo: 'Slayt 4',    group: 'Ekstraoral' },
@@ -668,8 +668,11 @@ export default function ImageGrid({ images, onImageDrop, onImageRemove, onImageR
 
   const handleBulkDrop = useCallback((slotKey, bulkId) => {
     const item = bulkFiles.find(x => x.id === bulkId)
-    if (item) onImageDrop(slotKey, item.file)
-  }, [bulkFiles, onImageDrop])
+    if (item) {
+      onImageDrop(slotKey, item.file)
+      removeBulkFile(bulkId)
+    }
+  }, [bulkFiles, onImageDrop, removeBulkFile])
 
   // Count assigned images per group for the header badges
   const assignedCount = IMAGE_SLOTS.filter(s => images[s.key]).length
