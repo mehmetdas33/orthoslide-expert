@@ -294,6 +294,17 @@ function App() {
           <ImageGrid images={images} onImageDrop={handleImageDrop} onImageRemove={handleImageRemove} onImageRotate={handleImageRotate} onReset={handleImageReset} />
         </div>
       </div>
+
+      {/* Footer */}
+      <footer style={{ maxWidth: '1600px', margin: '32px auto 0', padding: '16px 0', borderTop: '1px solid rgba(255,255,255,0.07)', textAlign: 'center' }}>
+        <p style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', lineHeight: '1.6' }}>
+          <span style={{ color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>Bezmialem Ortodonti Slide Maker</span>
+          {' '}— Ortodonti vakalarının sunuma hazırlanmasını kolaylaştırmak amacıyla geliştirilmiştir.
+        </p>
+        <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', marginTop: '4px' }}>
+          Geliştirici: <span style={{ color: 'rgba(255,255,255,0.4)' }}>Mehmet Daş</span>
+        </p>
+      </footer>
     </div>
   )
 }
