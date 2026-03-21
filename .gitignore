@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+backend/uploads/
+backend/output/
+frontend/node_modules/
+.env
+*.log
+build/
+*.spec.log
+# NOT excluding frontend/dist/ — committed so Render doesn't need Node.js

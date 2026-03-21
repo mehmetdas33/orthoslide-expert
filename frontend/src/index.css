@@ -1,0 +1,233 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Base Styles ── */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: #0b0b14;
+  color: #e2e8f0;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Background Pattern ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 20% 50%, rgba(45, 127, 255, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(16, 185, 129, 0.04) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: rgba(30,30,46,0.5); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: rgba(45,127,255,0.4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(45,127,255,0.6); }
+
+/* ── Glass Card ── */
+.glass-card {
+  background: rgba(30, 30, 46, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.glass-card:hover {
+  border-color: rgba(45, 127, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+/* ── Drop Zone ── */
+.drop-zone {
+  background: rgba(30, 30, 46, 0.4);
+  border: 2px dashed rgba(100, 100, 140, 0.3);
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.drop-zone:hover {
+  border-color: rgba(45, 127, 255, 0.5);
+  background: rgba(45, 127, 255, 0.05);
+}
+.drop-zone.active {
+  border-color: rgba(45, 127, 255, 0.8);
+  box-shadow: 0 0 20px rgba(45, 127, 255, 0.15);
+}
+.drop-zone.has-image {
+  border-style: solid;
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+/* ── Status Colors ── */
+.status-high {
+  color: #f87171;
+  font-weight: 600;
+}
+.status-low {
+  color: #60a5fa;
+  font-weight: 600;
+}
+.status-normal {
+  color: #34d399;
+  font-weight: 500;
+}
+
+/* ── Table ── */
+.ceph-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.ceph-table thead th {
+  background: rgba(45, 127, 255, 0.1);
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.ceph-table thead th:first-child { border-radius: 8px 0 0 0; }
+.ceph-table thead th:last-child { border-radius: 0 8px 0 0; }
+.ceph-table tbody td {
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  transition: background 0.2s;
+}
+.ceph-table tbody tr:hover td {
+  background: rgba(45, 127, 255, 0.04);
+}
+
+/* ── Button Styles ── */
+.btn-primary {
+  background: linear-gradient(135deg, #2d7fff 0%, #165ef5 100%);
+  color: white;
+  padding: 12px 28px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(45, 127, 255, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(45, 127, 255, 0.45);
+}
+.btn-primary:active {
+  transform: translateY(0);
+}
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.06);
+  color: #cbd5e1;
+  padding: 10px 22px;
+  border-radius: 10px;
+  font-weight: 500;
+  font-size: 0.9rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+/* ── Animations ── */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.loading-shimmer {
+  background: linear-gradient(90deg,
+    rgba(45, 127, 255, 0.05) 25%,
+    rgba(45, 127, 255, 0.15) 50%,
+    rgba(45, 127, 255, 0.05) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* ── Diagnosis Box ── */
+.diagnosis-card {
+  background: linear-gradient(135deg,
+    rgba(45, 127, 255, 0.08) 0%,
+    rgba(139, 92, 246, 0.06) 50%,
+    rgba(16, 185, 129, 0.05) 100%
+  );
+  border: 1px solid rgba(45, 127, 255, 0.12);
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+}
+.diagnosis-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #2d7fff, #8b5cf6, #10b981);
+}
+
+/* ── Section Header ── */
+.section-title {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #64748b;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.section-title::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(100,116,139,0.3), transparent);
+}
