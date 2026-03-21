@@ -25,16 +25,14 @@ _exe    = os.environ.get('ORTHO_EXE_DIR')
 # Frontend dist: inside bundle when frozen, or sibling folder in dev
 if _bundle:
     DIST_DIR = os.path.join(_bundle, 'frontend', 'dist')
+elif _exe:
+    DIST_DIR = os.path.join(_exe, 'frontend', 'dist')
 else:
     DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'frontend', 'dist')
 _serve_static = os.path.isdir(DIST_DIR)
 
-app = Flask(
-    __name__,
-    static_folder=DIST_DIR if _serve_static else None,
-    static_url_path='',
-)
-CORS(app)
+app = Flask(__name__)
+CORS(app, origins="*")  # Frontend served from Cloudflare Pages (different domain)
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

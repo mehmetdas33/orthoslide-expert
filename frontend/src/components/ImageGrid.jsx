@@ -406,7 +406,7 @@ function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
   }
 
   return (
-    <div className="glass-card p-4 mb-4">
+    <div className="glass-card p-4 mb-4" style={{ position: 'sticky', top: 4, zIndex: 20 }}>
       {/* Header */}
       <div className="flex items-center gap-2 mb-3">
         <svg className="w-3.5 h-3.5 text-accent-blue flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -512,24 +512,21 @@ function SlotZone({ slot, imageFile, onDrop, onRemove, onBulkDrop, onPreview, on
         <>
           <img src={preview} alt={slot.label} className="w-full h-full object-cover" />
           <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors" />
-          {/* Action buttons — top-right */}
-          <div className="absolute top-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-               style={{ opacity: undefined }}
-               onMouseEnter={e => e.currentTarget.style.opacity = '1'}
-               onMouseLeave={e => e.currentTarget.style.opacity = ''}>
+          {/* Action buttons — top-right, always visible */}
+          <div className="absolute top-1 right-1 flex gap-1">
             <button
               onClick={handleRotate}
-              className="w-5 h-5 rounded-full bg-blue-600/90 hover:bg-blue-500 text-white text-[10px] flex items-center justify-center shadow"
+              className="w-5 h-5 rounded-full bg-blue-600/80 hover:bg-blue-500 text-white text-[10px] flex items-center justify-center shadow"
               title="90° Döndür"
             >↻</button>
             <button
               onClick={(e) => { e.stopPropagation(); ref.current?.click() }}
-              className="w-5 h-5 rounded-full bg-ortho-600/90 hover:bg-ortho-500 text-white text-[8px] flex items-center justify-center shadow"
+              className="w-5 h-5 rounded-full bg-ortho-600/80 hover:bg-ortho-500 text-white text-[8px] flex items-center justify-center shadow"
               title="Değiştir"
             >↑</button>
             <button
               onClick={(e) => { e.stopPropagation(); onRemove(slot.key) }}
-              className="w-5 h-5 rounded-full bg-red-500/90 hover:bg-red-500 text-white text-[9px] flex items-center justify-center shadow"
+              className="w-5 h-5 rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[9px] flex items-center justify-center shadow"
               title="Kaldır"
             >✕</button>
           </div>
@@ -647,7 +644,7 @@ function Lightbox({ item, onClose }) {
 }
 
 // ── Main component ───────────────────────────────────────────────────────────
-export default function ImageGrid({ images, onImageDrop, onImageRemove, onImageRotate }) {
+export default function ImageGrid({ images, onImageDrop, onImageRemove, onImageRotate, onReset }) {
   const [bulkFiles, setBulkFiles] = useState([])
   const [lightbox, setLightbox] = useState(null)
   const nextId = useRef(0)
@@ -692,7 +689,16 @@ export default function ImageGrid({ images, onImageDrop, onImageRemove, onImageR
             </svg>
             Klinik Fotoğraflar
           </div>
-          <span className="ml-auto text-[10px] text-dark-500">{assignedCount}/{IMAGE_SLOTS.length} atandı</span>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="text-[10px] text-dark-500">{assignedCount}/{IMAGE_SLOTS.length} atandı</span>
+            {assignedCount > 0 && (
+              <button
+                onClick={onReset}
+                className="text-[10px] text-red-400/70 hover:text-red-400 border border-red-400/20 hover:border-red-400/50 rounded px-2 py-0.5 transition-colors"
+                title="Tüm fotoğrafları temizle"
+              >Tümünü Temizle</button>
+            )}
+          </div>
         </div>
 
         {/* Bulk upload */}

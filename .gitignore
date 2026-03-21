@@ -1,3 +1,5 @@
+OrthoSlide_Windows/
+OrthoSlide_Mac/
 venv/
 __pycache__/
 *.pyc

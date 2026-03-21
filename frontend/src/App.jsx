@@ -6,10 +6,9 @@ import PupilLineModal from './components/PupilLineModal'
 import PhotoQuestionModal from './components/PhotoQuestionModal'
 import CropModal from './components/CropModal'
 import LineMarkModal from './components/LineMarkModal'
-import XlsConverter from './components/XlsConverter'
 import axios from 'axios'
 
-const API_BASE = '/api'
+const API_BASE = (import.meta.env.VITE_API_URL || '') + '/api'
 
 const SLOT_QUESTIONS = {
   profile: [
@@ -137,6 +136,11 @@ function App() {
 
   const handleImageRemove = useCallback((slotKey) => {
     setImages(prev => { const n = { ...prev }; delete n[slotKey]; return n })
+  }, [])
+
+  const handleImageReset = useCallback(() => {
+    setImages({})
+    setAnnotationAnswers({})
   }, [])
 
   const handleImageRotate = useCallback((slotKey, rotatedFile) => {
@@ -285,12 +289,9 @@ function App() {
         hasData={!!cephData && evaluated.length > 0}
         imageCount={Object.keys(images).length} statusMessage={statusMessage} />
       <div style={{ maxWidth: '1600px', margin: '20px auto 0' }}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <ExcelUpload onUpload={handleExcelUpload} isLoading={isLoading} />
-          <XlsConverter onUpload={handleExcelUpload} />
-        </div>
+        <ExcelUpload onUpload={handleExcelUpload} isLoading={isLoading} />
         <div className="mt-5">
-          <ImageGrid images={images} onImageDrop={handleImageDrop} onImageRemove={handleImageRemove} onImageRotate={handleImageRotate} />
+          <ImageGrid images={images} onImageDrop={handleImageDrop} onImageRemove={handleImageRemove} onImageRotate={handleImageRotate} onReset={handleImageReset} />
         </div>
       </div>
     </div>

@@ -99,7 +99,7 @@ export default function ExcelUpload({ onUpload, isLoading }) {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-dark-200">Excel dosyasını sürükleyin veya tıklayın</p>
-              <p className="text-xs text-dark-500 mt-0.5">.xlsx formatında sefalometrik ölçüm verisi</p>
+              <p className="text-xs text-dark-500 mt-0.5">.xlsx veya .xls · XLS otomatik dönüştürülür</p>
             </div>
           </>
         )}

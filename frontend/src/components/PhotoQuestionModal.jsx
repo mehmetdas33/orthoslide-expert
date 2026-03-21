@@ -575,20 +575,25 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
         </div>
 
         {/* Actions */}
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
           <button onClick={onCancel} style={{
             padding: '9px 22px', borderRadius: 9, fontSize: 13, fontWeight: 600,
             cursor: 'pointer', background: 'rgba(255,255,255,0.05)',
             color: 'rgba(255,255,255,0.45)', border: `1px solid ${C.inactiveBdr}`,
           }}>İptal</button>
-          <button onClick={() => onConfirm(buildAllAnswers())} disabled={!allDone} style={{
+          <button onClick={() => onConfirm({})} style={{
+            padding: '9px 22px', borderRadius: 9, fontSize: 13, fontWeight: 600,
+            cursor: 'pointer', background: 'rgba(255,255,255,0.05)',
+            color: 'rgba(255,165,0,0.7)', border: '1px solid rgba(255,165,0,0.25)',
+          }} title="Fotoğrafı kaydet, analiz alanlarını boş bırak">Pas Geç</button>
+          <button onClick={() => onConfirm(buildAllAnswers())} style={{
             padding: '9px 28px', borderRadius: 9, fontSize: 13, fontWeight: 700,
-            cursor: allDone ? 'pointer' : 'not-allowed', border: 'none',
-            background: allDone ? C.active : '#1e3a8a',
-            color: 'white', opacity: allDone ? 1 : 0.45,
+            cursor: 'pointer', border: 'none',
+            background: allDone ? C.active : 'rgba(37,99,235,0.6)',
+            color: 'white',
             boxShadow: allDone ? C.activeShadow : 'none',
             transform: allDone ? 'translateY(-1px)' : 'none',
-          }}>{allDone ? 'Onayla ✓' : 'Onayla'}</button>
+          }}>Onayla {allDone ? '✓' : ''}</button>
         </div>
 
       </div>

@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \":*)",
+      "Bash(pip install:*)",
+      "Bash(npm run:*)",
+      "Bash(python app.py)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":3000\")",
+      "Bash(findstr LISTENING)",
+      "Bash(taskkill /PID 20800 /F)",
+      "Bash(cmd /c \"taskkill /PID 20800 /F\")",
+      "Bash(cmd /c \"taskkill /PID 20800 /F 2>&1\")",
+      "Bash(powershell -Command \"Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue | Select-Object OwningProcess\")",
+      "Bash(\"C:\\\\Users\\\\pc\\\\AppData\\\\Local\\\\Programs\\\\Python\\\\Python310\\\\python.exe\" -c \":*)",
+      "Bash(docker build:*)",
+      "Bash(venv/Scripts/pip install:*)",
+      "Bash(\"C:/Users/pc/AppData/Local/Programs/Python/Python310/python.exe\" -m pip install pyinstaller --quiet)",
+      "Bash(\"C:/Users/pc/AppData/Local/Programs/Python/Python310/python.exe\" -m pip install --upgrade pyinstaller)",
+      "Bash(python/python.exe run.py)",
+      "Bash(cmd /c \"powershell -Command \"\"Copy-Item -Path ''C:\\\\Users\\\\pc\\\\Desktop\\\\My project Claude\\\\frontend\\\\dist\\\\*'' -Destination ''C:\\\\Users\\\\pc\\\\Desktop\\\\My project Claude\\\\OrthoSlide_Windows\\\\frontend\\\\dist\\\\'' -Recurse -Force; Write-Host OK\"\"\")"
+    ]
+  }
+}
