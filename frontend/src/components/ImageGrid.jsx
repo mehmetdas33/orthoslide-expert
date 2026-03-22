@@ -93,27 +93,44 @@ const SLOT_GHOST = {
     </svg>
   ),
   frontal_smile: (
-    <svg viewBox="0 0 80 100" className="w-full h-full">
+    <svg viewBox="0 0 80 108" className="w-full h-full">
       {/* Shoulders */}
-      <path d="M8 100 Q8 74 30 70 L30 67 L50 67 L50 70 Q72 74 72 100" {...G.face}/>
+      <path d="M2 108 Q4 82 24 76 Q30 73 33 71 L33 68 L47 68 L47 71 Q50 73 56 76 Q76 82 78 108Z" {...G.face}/>
       {/* Neck */}
-      <rect x="32" y="58" width="16" height="12" rx="3" {...G.face}/>
-      {/* Head */}
-      <ellipse cx="40" cy="34" rx="24" ry="30" {...G.face}/>
-      {/* Hair */}
-      <path d="M16 34 Q16 6 40 5 Q64 6 64 34 Q58 16 40 15 Q22 16 16 34Z" {...G.hair}/>
-      {/* Eyes */}
-      <ellipse cx="31" cy="33" rx="5" ry="3" {...G.feat}/>
-      <ellipse cx="49" cy="33" rx="5" ry="3" {...G.feat}/>
-      {/* Center guide */}
-      <line x1="40" y1="50" x2="40" y2="70" stroke="#60a5fa" strokeOpacity="0.25" strokeWidth="1" strokeDasharray="2 2"/>
-      {/* Smile lips */}
-      <path d="M30 55 Q40 64 50 55" fill="currentColor" fillOpacity="0.12" stroke="currentColor" strokeOpacity="0.3" strokeWidth="1.5"/>
-      {/* Teeth */}
-      <rect x="31" y="55" width="18" height="6" rx="1" fill="currentColor" fillOpacity="0.2" stroke="currentColor" strokeOpacity="0.2" strokeWidth="0.8"/>
-      <line x1="40" y1="55" x2="40" y2="61" stroke="currentColor" strokeOpacity="0.15" strokeWidth="0.8"/>
-      <line x1="34.5" y1="55" x2="34.5" y2="61" stroke="currentColor" strokeOpacity="0.1" strokeWidth="0.8"/>
-      <line x1="45.5" y1="55" x2="45.5" y2="61" stroke="currentColor" strokeOpacity="0.1" strokeWidth="0.8"/>
+      <path d="M33 58 Q32 64 33 68 L47 68 Q48 64 47 58Z" {...G.face}/>
+      {/* Face */}
+      <path d="M40 6 Q58 6 63 26 Q66 42 62 54 Q58 64 40 66 Q22 64 18 54 Q14 42 17 26 Q22 6 40 6Z" {...G.face}/>
+      {/* Hair — topuz */}
+      <ellipse cx="40" cy="5" rx="7" ry="4.5" {...G.hair}/>
+      <path d="M17 26 Q15 14 22 9 Q30 4 40 4 Q50 4 58 9 Q65 14 63 26 Q59 8 40 7 Q21 8 17 26Z" {...G.hair}/>
+      {/* Ear L */}
+      <path d="M17 32 Q11 33 11 39 Q11 45 17 46 Q17 44 14 39 Q14 35 17 34Z" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeOpacity="0.18" strokeWidth="1"/>
+      {/* Ear R */}
+      <path d="M63 32 Q69 33 69 39 Q69 45 63 46 Q63 44 66 39 Q66 35 63 34Z" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeOpacity="0.18" strokeWidth="1"/>
+      {/* Brows — slightly raised (happy) */}
+      <path d="M22 25 Q28 20 35 23" fill="none" stroke="currentColor" strokeOpacity="0.38" strokeWidth="1.4" strokeLinecap="round"/>
+      <path d="M45 23 Q52 20 58 25" fill="none" stroke="currentColor" strokeOpacity="0.38" strokeWidth="1.4" strokeLinecap="round"/>
+      {/* Eyes — narrowed from smile */}
+      <path d="M23 33 Q26 30 30 31 Q34 30 37 33 Q34 35 30 35 Q26 35 23 33Z" fill="currentColor" fillOpacity="0.13" stroke="currentColor" strokeOpacity="0.3" strokeWidth="1"/>
+      <circle cx="30" cy="32" r="2" fill="currentColor" fillOpacity="0.18"/>
+      <path d="M43 33 Q46 30 50 31 Q54 30 57 33 Q54 35 50 35 Q46 35 43 33Z" fill="currentColor" fillOpacity="0.13" stroke="currentColor" strokeOpacity="0.3" strokeWidth="1"/>
+      <circle cx="50" cy="32" r="2" fill="currentColor" fillOpacity="0.18"/>
+      {/* Cheeks raised */}
+      <ellipse cx="24" cy="43" rx="5" ry="3" fill="currentColor" fillOpacity="0.06"/>
+      <ellipse cx="56" cy="43" rx="5" ry="3" fill="currentColor" fillOpacity="0.06"/>
+      {/* Nose */}
+      <path d="M40 36 L39 44 Q37 48 38 50 Q40 52 42 50 Q43 48 41 44 L40 36" fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1.1" strokeLinecap="round"/>
+      {/* BIG open smile — very distinct */}
+      <path d="M27 54 Q33 50 40 51 Q47 50 53 54 Q50 64 40 65 Q30 64 27 54Z" fill="currentColor" fillOpacity="0.14" stroke="currentColor" strokeOpacity="0.35" strokeWidth="1.4"/>
+      {/* Teeth — large & clear */}
+      <rect x="28" y="54" width="24" height="8" rx="2" fill="currentColor" fillOpacity="0.28" stroke="currentColor" strokeOpacity="0.15" strokeWidth="0.5"/>
+      <line x1="40" y1="54" x2="40" y2="62" stroke="currentColor" strokeOpacity="0.22" strokeWidth="0.8"/>
+      <line x1="34" y1="54" x2="34" y2="62" stroke="currentColor" strokeOpacity="0.15" strokeWidth="0.7"/>
+      <line x1="46" y1="54" x2="46" y2="62" stroke="currentColor" strokeOpacity="0.15" strokeWidth="0.7"/>
+      <line x1="29" y1="54" x2="29" y2="62" stroke="currentColor" strokeOpacity="0.1" strokeWidth="0.6"/>
+      <line x1="51" y1="54" x2="51" y2="62" stroke="currentColor" strokeOpacity="0.1" strokeWidth="0.6"/>
+      {/* Midline guide */}
+      <line x1="40" y1="66" x2="40" y2="76" stroke="#60a5fa" strokeOpacity="0.28" strokeWidth="1" strokeDasharray="2 2"/>
     </svg>
   ),
   profile: (
@@ -138,10 +155,13 @@ const SLOT_GHOST = {
       <path d="M28 14 Q32 6 44 6 Q52 6 56 14" fill="currentColor" fillOpacity="0.14"/>
       <path d="M66 28 Q74 32 72 40 Q70 46 66 46" fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="1.5"/>
       <ellipse cx="56" cy="28" rx="5" ry="3" {...G.feat}/>
-      {/* Open smile with teeth showing */}
-      <path d="M60 52 Q68 58 66 64" fill="none" stroke="currentColor" strokeOpacity="0.25" strokeWidth="1.5"/>
-      <path d="M60 52 Q64 56 64 60" fill="none" stroke="currentColor" strokeOpacity="0.15" strokeWidth="1"/>
-      <rect x="61" y="53" width="6" height="4" rx="0.5" fill="currentColor" fillOpacity="0.18"/>
+      {/* Brow raised */}
+      <path d="M50 20 Q58 17 64 21" fill="none" stroke="currentColor" strokeOpacity="0.3" strokeWidth="1.2" strokeLinecap="round"/>
+      {/* OPEN mouth — very visible teeth */}
+      <path d="M58 52 Q68 56 68 64 Q64 68 58 64Z" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeOpacity="0.28" strokeWidth="1.2"/>
+      <rect x="59" y="52" width="9" height="7" rx="1" fill="currentColor" fillOpacity="0.28" stroke="currentColor" strokeOpacity="0.15" strokeWidth="0.5"/>
+      <line x1="63" y1="52" x2="63" y2="59" stroke="currentColor" strokeOpacity="0.2" strokeWidth="0.7"/>
+      <line x1="67" y1="52" x2="67" y2="59" stroke="currentColor" strokeOpacity="0.15" strokeWidth="0.7"/>
     </svg>
   ),
   three_quarter: (
@@ -362,22 +382,33 @@ const SLOT_GHOST = {
     </svg>
   ),
   cover: (
-    <svg viewBox="0 0 80 100" className="w-full h-full">
-      {/* Head */}
-      <ellipse cx="40" cy="28" rx="20" ry="24" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeOpacity="0.28" strokeWidth="1.5"/>
-      {/* Hair */}
-      <path d="M20 28 Q20 6 40 5 Q60 6 60 28 Q56 14 40 13 Q24 14 20 28Z" fill="currentColor" fillOpacity="0.16"/>
-      {/* Eyes */}
-      <ellipse cx="32" cy="26" rx="4" ry="3" fill="currentColor" fillOpacity="0.2"/>
-      <ellipse cx="48" cy="26" rx="4" ry="3" fill="currentColor" fillOpacity="0.2"/>
-      {/* Smile */}
-      <path d="M33 38 Q40 44 47 38" fill="none" stroke="currentColor" strokeOpacity="0.3" strokeWidth="1.5"/>
+    <svg viewBox="0 0 80 108" className="w-full h-full">
+      {/* Shoulders */}
+      <path d="M2 108 Q4 82 24 76 Q30 73 33 71 L33 68 L47 68 L47 71 Q50 73 56 76 Q76 82 78 108Z" {...G.face}/>
       {/* Neck */}
-      <rect x="34" y="51" width="12" height="10" rx="2" fill="currentColor" fillOpacity="0.08"/>
-      {/* Torso / badge */}
-      <path d="M8 100 Q8 72 28 66 L34 62 L40 65 L46 62 L52 66 Q72 72 72 100" fill="currentColor" fillOpacity="0.1" stroke="currentColor" strokeOpacity="0.25" strokeWidth="1.5"/>
-      {/* Collar */}
-      <path d="M34 62 L40 72 L46 62" fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1.2"/>
+      <path d="M33 58 Q32 64 33 68 L47 68 Q48 64 47 58Z" {...G.face}/>
+      {/* Face */}
+      <path d="M40 6 Q58 6 63 26 Q66 42 62 54 Q58 64 40 66 Q22 64 18 54 Q14 42 17 26 Q22 6 40 6Z" {...G.face}/>
+      {/* Hair — topuz */}
+      <ellipse cx="40" cy="5" rx="7" ry="4.5" {...G.hair}/>
+      <path d="M17 26 Q15 14 22 9 Q30 4 40 4 Q50 4 58 9 Q65 14 63 26 Q59 8 40 7 Q21 8 17 26Z" {...G.hair}/>
+      {/* Ear L */}
+      <path d="M17 32 Q11 33 11 39 Q11 45 17 46 Q17 44 14 39 Q14 35 17 34Z" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeOpacity="0.18" strokeWidth="1"/>
+      {/* Ear R */}
+      <path d="M63 32 Q69 33 69 39 Q69 45 63 46 Q63 44 66 39 Q66 35 63 34Z" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeOpacity="0.18" strokeWidth="1"/>
+      {/* Brows */}
+      <path d="M23 27 Q29 23 35 25" fill="none" stroke="currentColor" strokeOpacity="0.35" strokeWidth="1.4" strokeLinecap="round"/>
+      <path d="M45 25 Q51 23 57 27" fill="none" stroke="currentColor" strokeOpacity="0.35" strokeWidth="1.4" strokeLinecap="round"/>
+      {/* Eyes */}
+      <path d="M23 33 Q26 30 30 31 Q34 30 37 33 Q34 36 30 36 Q26 36 23 33Z" fill="currentColor" fillOpacity="0.13" stroke="currentColor" strokeOpacity="0.3" strokeWidth="1"/>
+      <circle cx="30" cy="33" r="2" fill="currentColor" fillOpacity="0.18"/>
+      <path d="M43 33 Q46 30 50 31 Q54 30 57 33 Q54 36 50 36 Q46 36 43 33Z" fill="currentColor" fillOpacity="0.13" stroke="currentColor" strokeOpacity="0.3" strokeWidth="1"/>
+      <circle cx="50" cy="33" r="2" fill="currentColor" fillOpacity="0.18"/>
+      {/* Nose */}
+      <path d="M40 36 L39 44 Q37 48 38 50 Q40 52 42 50 Q43 48 41 44 L40 36" fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1.1" strokeLinecap="round"/>
+      {/* Closed lips neutral */}
+      <path d="M32 56 Q36 54 40 55 Q44 54 48 56" fill="none" stroke="currentColor" strokeOpacity="0.28" strokeWidth="1.2" strokeLinecap="round"/>
+      <path d="M32 56 Q36 60 40 60 Q44 60 48 56" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeOpacity="0.18" strokeWidth="1"/>
     </svg>
   ),
 }
