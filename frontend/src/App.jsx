@@ -77,6 +77,17 @@ function App() {
   const [closingVideo, setClosingVideo] = useState(null)
   const videoInputRef = useRef(null)
 
+  // Prevent browser from navigating to dropped files when dropped outside a slot zone
+  useEffect(() => {
+    const prevent = (e) => e.preventDefault()
+    document.addEventListener('dragover', prevent)
+    document.addEventListener('drop', prevent)
+    return () => {
+      document.removeEventListener('dragover', prevent)
+      document.removeEventListener('drop', prevent)
+    }
+  }, [])
+
   const handleExcelUpload = useCallback(async (rawFile) => {
     setIsLoading(true)
 

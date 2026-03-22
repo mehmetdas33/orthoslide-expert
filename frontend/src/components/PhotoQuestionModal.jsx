@@ -368,6 +368,9 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
   const setAnswer = (ph, val) => setSimpleAnswers(prev => ({ ...prev, [ph]: val }))
   const setTeethSelection = (ph, teeth) => setTeethSelections(prev => ({ ...prev, [ph]: teeth }))
 
+  // `loaded` must be defined BEFORE confirmWithBurn to avoid TDZ error in dep array
+  const loaded = dispW > 0 && dispH > 0
+
   const confirmWithBurn = useCallback((answers) => {
     if (showMidlineMark && midlineX !== null && imgRef.current && loaded) {
       const img = imgRef.current
@@ -416,7 +419,6 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
   }
 
   const allDone = questions.every(isAnswered)
-  const loaded  = dispW > 0 && dispH > 0
   const total   = questions.filter(q => q.type !== 'header' && !q.optional).length
   const done    = questions.filter(q => q.type !== 'header' && !q.optional && isAnswered(q)).length
   const pct     = total ? Math.round((done / total) * 100) : 100
