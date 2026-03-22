@@ -340,15 +340,30 @@ def generate_pptx(
             pass
 
     if co_a_float is not None:
-        co_a_ref = REFERENCE_RANGES["Co-A"]
+        # PH86: Co-A reference = Co-A − N-A (dynamic, patient-specific)
+        n_a_val = ceph_data.get("N-A")
+        n_a_float = None
+        if n_a_val is not None:
+            try:
+                n_a_float = float(n_a_val)
+            except (ValueError, TypeError):
+                pass
 
-        # PH86: Co-A reference range text (e.g. "71-111")
-        placeholder_text_map["Placeholder 86"] = {
-            "value": f"{round(co_a_ref['low'])}-{round(co_a_ref['high'])}",
-            "status": "normal", "bold": True,
-        }
-        # PH90: Co-A interpretation (actual vs static reference)
-        _co_a_s = "high" if co_a_float > co_a_ref["high"] else ("low" if co_a_float < co_a_ref["low"] else "normal")
+        if n_a_float is not None:
+            co_a_reference = co_a_float - n_a_float
+            placeholder_text_map["Placeholder 86"] = {
+                "value": str(round(co_a_reference)), "status": "normal", "bold": True,
+            }
+            # PH16: Co-A actual value colored by PH86 reference
+            _co_a_s = "high" if co_a_float > co_a_reference else ("low" if co_a_float < co_a_reference else "normal")
+            placeholder_text_map["Placeholder 16"] = {
+                "value": str(round(co_a_float)), "status": _co_a_s, "bold": True,
+            }
+        else:
+            co_a_reference = None
+            _co_a_s = "normal"
+
+        # PH90: Co-A interpretation (increased/decreased/normal)
         placeholder_text_map["Placeholder 90"] = {
             "value": "increased" if _co_a_s == "high" else ("decreased" if _co_a_s == "low" else "normal"),
             "status": "normal", "bold": True,
