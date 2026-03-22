@@ -176,6 +176,7 @@ def generate_pptx_endpoint():
             patient_info=patient_info,
             image_paths=image_paths,
             closing_video_path=closing_video_path,
+            pa_film_path=image_paths.get('pa_film'),
         )
         return send_file(
             output_path,

@@ -22,6 +22,7 @@ const IMAGE_SLOTS = [
   { key: 'cephalometric',     label: 'Sefalometri(Çizili)', slideInfo: 'S12-17',     group: 'Radyografi' },
   { key: 'ceph_raw',          label: 'Sefalometri(Ham)',    slideInfo: 'Slayt 18',   group: 'Radyografi' },
   { key: 'wrist',             label: 'El-Bilek',       slideInfo: 'Slayt 19',   group: 'Radyografi' },
+  { key: 'pa_film',           label: 'PA Film',         slideInfo: 'Slayt 23',   group: 'Radyografi' },
 ]
 
 const GROUP_STYLE = {
