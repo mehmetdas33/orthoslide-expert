@@ -3,12 +3,28 @@ import { useRef, useState, useEffect, useCallback } from 'react'
 const MAG_SIZE = 150
 const MAG_ZOOM = 4
 
-function drawMidlineOnly(ctx, W, H, p1, p2, scale) {
+// Perpendicular foot from p3 onto line p1→p2
+function cupidFoot(p1, p2, p3) {
+  const dx = p2.x - p1.x, dy = p2.y - p1.y
+  const len2 = dx * dx + dy * dy || 1
+  const t = ((p3.x - p1.x) * dx + (p3.y - p1.y) * dy) / len2
+  return { x: p1.x + t * dx, y: p1.y + t * dy }
+}
+
+function drawMidline(ctx, W, H, pts, scale) {
+  if (pts.length < 2) return
+  const [p1, p2] = pts
   const dx = p2.x - p1.x, dy = p2.y - p1.y
   const len = Math.sqrt(dx * dx + dy * dy) || 1
   const px = -dy / len, py = dx / len
-  const ox = (p1.x + p2.x) / 2, oy = (p1.y + p2.y) / 2
   const t = Math.max(W, H) * 2
+  let ox, oy
+  if (pts.length === 3) {
+    const foot = cupidFoot(p1, p2, pts[2])
+    ox = foot.x; oy = foot.y
+  } else {
+    ox = (p1.x + p2.x) / 2; oy = (p1.y + p2.y) / 2
+  }
   ctx.beginPath()
   ctx.moveTo(ox + px * t, oy + py * t)
   ctx.lineTo(ox - px * t, oy - py * t)
@@ -21,12 +37,12 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
   const imgRef       = useRef(null)
   const canvasRef    = useRef(null)
   const magCanvasRef = useRef(null)
-  const [points, setPoints] = useState([])
-  const [imgSrc, setImgSrc] = useState(null)
-  const [dispW, setDispW]   = useState(0)
-  const [dispH, setDispH]   = useState(0)
-  const [ph109, setPh109]   = useState(null)
-  const [saving, setSaving] = useState(false)
+  const [points, setPoints]   = useState([])
+  const [imgSrc, setImgSrc]   = useState(null)
+  const [dispW, setDispW]     = useState(0)
+  const [dispH, setDispH]     = useState(0)
+  const [ph109, setPh109]     = useState(null)
+  const [saving, setSaving]   = useState(false)
   const [mousePos, setMousePos] = useState(null)
 
   useEffect(() => {
@@ -46,7 +62,7 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
     setDispH(Math.round(img.naturalHeight * s))
   }
 
-  // Redraw annotation canvas when points/size change
+  // Redraw annotation canvas
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas || !dispW || !dispH) return
@@ -57,26 +73,39 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
 
     if (points.length >= 2) {
       const [p1, p2] = points
-      // Dashed pupil line
+      // Dashed pupil reference line
       ctx.save()
-      ctx.beginPath()
-      ctx.moveTo(p1.x, p1.y)
-      ctx.lineTo(p2.x, p2.y)
-      ctx.strokeStyle = 'rgba(59,130,246,0.4)'
-      ctx.lineWidth = 1.5
       ctx.setLineDash([5, 4])
+      ctx.beginPath()
+      ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y)
+      ctx.strokeStyle = 'rgba(59,130,246,0.45)'
+      ctx.lineWidth = 1.5
       ctx.stroke()
       ctx.restore()
-      // Midline through midpoint
-      drawMidlineOnly(ctx, dispW, dispH, p1, p2, 1)
+
+      if (points.length === 3) {
+        const p3  = points[2]
+        const foot = cupidFoot(p1, p2, p3)
+        // Yellow dashed helper: Cupid's bow → foot
+        ctx.save()
+        ctx.setLineDash([4, 3])
+        ctx.beginPath()
+        ctx.moveTo(p3.x, p3.y); ctx.lineTo(foot.x, foot.y)
+        ctx.strokeStyle = 'rgba(251,191,36,0.75)'
+        ctx.lineWidth = 1
+        ctx.stroke()
+        ctx.restore()
+      }
+
+      drawMidline(ctx, dispW, dispH, points, 1)
     }
 
-    // Draw point markers
-    const labels = ['Sol Göz', 'Sağ Göz']
+    // Point markers
+    const colors = ['#3B82F6', '#3B82F6', '#F59E0B']
     points.forEach((p, i) => {
       ctx.beginPath()
       ctx.arc(p.x, p.y, 7, 0, Math.PI * 2)
-      ctx.fillStyle = '#3B82F6'
+      ctx.fillStyle = colors[i] || '#3B82F6'
       ctx.fill()
       ctx.strokeStyle = 'rgba(255,255,255,0.95)'
       ctx.lineWidth = 2
@@ -89,7 +118,7 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
     })
   }, [points, dispW, dispH])
 
-  // Draw magnifier
+  // Magnifier
   useEffect(() => {
     const magCanvas = magCanvasRef.current
     const img = imgRef.current
@@ -122,17 +151,17 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
     ctx.stroke()
   }, [mousePos, dispW, dispH])
 
-  const handleCanvasClick = (e) => {
-    if (points.length >= 2) return
+  const handleCanvasClick = useCallback((e) => {
+    if (points.length >= 3) return
     const canvas = canvasRef.current
     const rect   = canvas.getBoundingClientRect()
     const x = (e.clientX - rect.left) * (canvas.width  / rect.width)
     const y = (e.clientY - rect.top)  * (canvas.height / rect.height)
     setPoints(prev => [...prev, { x, y }])
-  }
+  }, [points.length])
 
   const handleMouseMove = useCallback((e) => {
-    if (points.length >= 2) { setMousePos(null); return }
+    if (points.length >= 3) { setMousePos(null); return }
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
@@ -166,32 +195,37 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
     const natW = img.naturalWidth, natH = img.naturalHeight
     const sX = natW / dispW, sY = natH / dispH
     const fc  = document.createElement('canvas')
-    fc.width  = natW
-    fc.height = natH
+    fc.width  = natW; fc.height = natH
     const ctx = fc.getContext('2d')
     ctx.drawImage(img, 0, 0, natW, natH)
+
     let midlineFraction = null
-    if (points.length === 2) {
-      const [p1, p2] = points
-      const sp1 = { x: p1.x * sX, y: p1.y * sY }
-      const sp2 = { x: p2.x * sX, y: p2.y * sY }
-      drawMidlineOnly(ctx, natW, natH, sp1, sp2, (sX + sY) / 2)
-      midlineFraction = (p1.x + p2.x) / 2 / dispW
+    if (points.length >= 2) {
+      const scaled = points.map(p => ({ x: p.x * sX, y: p.y * sY }))
+      drawMidline(ctx, natW, natH, scaled, (sX + sY) / 2)
+      if (points.length === 3) {
+        const foot = cupidFoot(points[0], points[1], points[2])
+        midlineFraction = foot.x / dispW
+      } else {
+        midlineFraction = (points[0].x + points[1].x) / 2 / dispW
+      }
     }
+
     fc.toBlob(blob => {
       if (!blob) { setSaving(false); return }
-      const ext  = points.length === 2 ? '_midline.jpg' : '.jpg'
+      const ext  = points.length >= 2 ? '_midline.jpg' : '.jpg'
       const name = file.name.replace(/\.[^.]+$/, '') + ext
       onConfirm(new File([blob], name, { type: 'image/jpeg' }), ph109, file, midlineFraction)
     }, 'image/jpeg', 0.95)
   }, [points, file, dispW, dispH, ph109, onConfirm, saving])
 
+  // Derived — after all useCallback hooks
   const loaded = dispW > 0 && dispH > 0
-
   const hint =
     points.length === 0 ? '1. Sol göz bebeğine tıklayın' :
     points.length === 1 ? '2. Sağ göz bebeğine tıklayın' :
-                          '✓ Orta hat hazır — göz bebekleri ortasından'
+    points.length === 2 ? "3. Cupid's bow noktasına tıklayın" :
+                          "✓ Orta hat hazır — Cupid's bow'dan dik"
 
   const magLeft = mousePos ? mousePos.clientX + 20 : 0
   const magTop  = mousePos ? mousePos.clientY - MAG_SIZE - 10 : 0
@@ -202,22 +236,17 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(4px)', padding: 16,
     }}>
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center',
-        gap: 14, maxWidth: '100%',
-      }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, maxWidth: '100%' }}>
 
         {/* Header */}
         <div style={{ textAlign: 'center' }}>
-          <p style={{ color: 'white', fontWeight: 700, fontSize: 14, letterSpacing: '0.02em', margin: 0 }}>
+          <p style={{ color: 'white', fontWeight: 700, fontSize: 14, margin: 0 }}>
             Cephe Gülen — Orta Hat & Gülüş Analizi
           </p>
           <p style={{
-            color: points.length === 2 ? '#4ADE80' : '#60A5FA',
+            color: points.length === 3 ? '#4ADE80' : points.length === 2 ? '#F59E0B' : '#60A5FA',
             fontSize: 12, marginTop: 4, fontWeight: 500,
-          }}>
-            {hint}
-          </p>
+          }}>{hint}</p>
         </div>
 
         {/* Image + canvas */}
@@ -236,16 +265,18 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
               style={{ display: 'block', width: loaded ? dispW : 0, height: loaded ? dispH : 0 }} />
           )}
           {loaded && (
-            <canvas ref={canvasRef} onClick={handleCanvasClick}
-              onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}
+            <canvas ref={canvasRef}
+              onClick={handleCanvasClick}
+              onMouseMove={handleMouseMove}
+              onMouseLeave={handleMouseLeave}
               style={{
                 position: 'absolute', top: 0, left: 0, width: dispW, height: dispH,
-                cursor: points.length < 2 ? 'crosshair' : 'default',
+                cursor: points.length < 3 ? 'crosshair' : 'default',
               }} />
           )}
         </div>
 
-        {/* Gülüş Hattı question */}
+        {/* Gülüş Hattı */}
         <div style={{
           background: '#111827', border: '1px solid rgba(255,255,255,0.08)',
           borderRadius: 12, padding: '14px 20px',
@@ -261,16 +292,12 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
                 style={{
                   padding: '7px 14px', borderRadius: 9, fontSize: 12, fontWeight: 700,
                   cursor: 'pointer', border: 'none', transition: 'all 0.15s',
-                  background: ph109 === opt
-                    ? 'linear-gradient(135deg, #2563EB, #1d4ed8)'
-                    : 'rgba(255,255,255,0.06)',
+                  background: ph109 === opt ? 'linear-gradient(135deg,#2563EB,#1d4ed8)' : 'rgba(255,255,255,0.06)',
                   color: ph109 === opt ? 'white' : 'rgba(255,255,255,0.45)',
                   boxShadow: ph109 === opt ? '0 4px 12px rgba(37,99,235,0.4)' : 'none',
                   transform: ph109 === opt ? 'translateY(-1px)' : 'none',
                   whiteSpace: 'nowrap',
-                }}>
-                {opt}
-              </button>
+                }}>{opt}</button>
             ))}
           </div>
           {!ph109 && (
@@ -289,21 +316,18 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
               background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)',
               border: '1px solid rgba(255,255,255,0.1)',
             }}>Sıfırla</button>
-
           <button onClick={handleRotate}
             style={{
               padding: '9px 18px', borderRadius: 9, fontSize: 12, fontWeight: 600,
               cursor: 'pointer', background: 'rgba(255,255,255,0.05)',
               color: 'rgba(255,255,255,0.4)', border: '1px solid rgba(255,255,255,0.1)',
             }}>↻ Döndür</button>
-
           <button onClick={onCancel}
             style={{
               padding: '9px 18px', borderRadius: 9, fontSize: 13, fontWeight: 600,
               cursor: 'pointer', background: 'rgba(255,255,255,0.05)',
               color: 'rgba(255,255,255,0.35)', border: '1px solid rgba(255,255,255,0.1)',
             }}>İptal</button>
-
           <button onClick={handleConfirm} disabled={saving || !loaded}
             style={{
               padding: '9px 28px', borderRadius: 9, fontSize: 13, fontWeight: 700,
@@ -311,9 +335,7 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
               background: 'linear-gradient(135deg,#2563EB,#1d4ed8)',
               color: 'white', opacity: saving || !loaded ? 0.6 : 1,
               boxShadow: '0 4px 14px rgba(37,99,235,0.4)',
-            }}>
-            {saving ? 'Kaydediliyor…' : 'Kaydet'}
-          </button>
+            }}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</button>
         </div>
 
       </div>
