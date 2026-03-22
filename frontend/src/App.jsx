@@ -282,6 +282,7 @@ function App() {
       )}
       {pendingAnnotation?.type === 'question' && (
         <PhotoQuestionModal
+          key={pendingAnnotation.slotKey}
           file={pendingAnnotation.file}
           questions={pendingAnnotation.questions}
           onConfirm={handleQuestionConfirm}
