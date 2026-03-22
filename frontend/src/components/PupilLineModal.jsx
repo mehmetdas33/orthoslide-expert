@@ -316,11 +316,11 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
           <p style={{ margin: 0, color: 'rgba(255,255,255,0.5)', fontSize: 10, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase' }}>
             Gülüş Hattı
           </p>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
             {['High', 'Normal to High', 'Normal', 'Normal to Low', 'Low'].map(opt => (
               <button key={opt} onClick={() => setPh109(prev => prev === opt ? null : opt)}
                 style={{
-                  padding: '8px 24px', borderRadius: 9, fontSize: 13, fontWeight: 700,
+                  padding: '7px 14px', borderRadius: 9, fontSize: 12, fontWeight: 700,
                   cursor: 'pointer', border: 'none', transition: 'all 0.15s',
                   background: ph109 === opt
                     ? 'linear-gradient(135deg, #2563EB, #1d4ed8)'
@@ -328,6 +328,7 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
                   color: ph109 === opt ? 'white' : 'rgba(255,255,255,0.45)',
                   boxShadow: ph109 === opt ? '0 4px 12px rgba(37,99,235,0.4)' : 'none',
                   transform: ph109 === opt ? 'translateY(-1px)' : 'none',
+                  whiteSpace: 'nowrap',
                 }}>
                 {opt}
               </button>

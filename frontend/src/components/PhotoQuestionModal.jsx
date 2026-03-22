@@ -368,11 +368,9 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
   const setAnswer = (ph, val) => setSimpleAnswers(prev => ({ ...prev, [ph]: val }))
   const setTeethSelection = (ph, teeth) => setTeethSelections(prev => ({ ...prev, [ph]: teeth }))
 
-  // `loaded` must be defined BEFORE confirmWithBurn to avoid TDZ error in dep array
-  const loaded = dispW > 0 && dispH > 0
-
   const confirmWithBurn = useCallback((answers) => {
-    if (showMidlineMark && midlineX !== null && imgRef.current && loaded) {
+    // Compute loaded inline — avoids any const TDZ risk in dep array
+    if (showMidlineMark && midlineX !== null && imgRef.current && dispW > 0 && dispH > 0) {
       const img = imgRef.current
       const natW = img.naturalWidth, natH = img.naturalHeight
       const fc = document.createElement('canvas')
@@ -392,7 +390,10 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
     } else {
       onConfirm(answers, null)
     }
-  }, [showMidlineMark, midlineX, loaded, imgRef, dispW, file, onConfirm])
+  }, [showMidlineMark, midlineX, imgRef, dispW, dispH, file, onConfirm])
+
+  // `loaded` only used in JSX — defined AFTER all useCallback calls (no TDZ risk)
+  const loaded = dispW > 0 && dispH > 0
 
   const buildAllAnswers = () => {
     const all = { ...simpleAnswers }
