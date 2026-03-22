@@ -50,29 +50,46 @@ const G = { // shorthand fill/stroke helpers
 
 const SLOT_GHOST = {
   frontal: (
-    <svg viewBox="0 0 80 100" className="w-full h-full">
+    <svg viewBox="0 0 80 108" className="w-full h-full">
       {/* Shoulders */}
-      <path d="M8 100 Q8 74 30 70 Q30 68 30 67 L50 67 Q50 68 50 70 Q72 74 72 100" {...G.face}/>
+      <path d="M2 108 Q4 82 24 76 Q30 73 33 71 L33 68 L47 68 L47 71 Q50 73 56 76 Q76 82 78 108Z" {...G.face}/>
       {/* Neck */}
-      <rect x="32" y="58" width="16" height="12" rx="3" {...G.face}/>
-      {/* Head */}
-      <ellipse cx="40" cy="34" rx="24" ry="30" {...G.face}/>
-      {/* Hair */}
-      <path d="M16 34 Q16 6 40 5 Q64 6 64 34 Q58 16 40 15 Q22 16 16 34Z" {...G.hair}/>
+      <path d="M33 58 Q32 64 33 68 L47 68 Q48 64 47 58Z" {...G.face}/>
+      {/* Face — oval, narrower jaw */}
+      <path d="M40 6 Q58 6 63 26 Q66 42 62 54 Q58 64 40 66 Q22 64 18 54 Q14 42 17 26 Q22 6 40 6Z" {...G.face}/>
+      {/* Hair — pulled back tight, small bun top */}
+      <ellipse cx="40" cy="5" rx="7" ry="4.5" {...G.hair}/>
+      <path d="M17 26 Q15 14 22 9 Q30 4 40 4 Q50 4 58 9 Q65 14 63 26 Q59 8 40 7 Q21 8 17 26Z" {...G.hair}/>
+      {/* Hairline wisps */}
+      <path d="M21 18 Q23 13 26 12" fill="none" stroke="currentColor" strokeOpacity="0.12" strokeWidth="1"/>
+      <path d="M59 18 Q57 13 54 12" fill="none" stroke="currentColor" strokeOpacity="0.12" strokeWidth="1"/>
       {/* Ear L */}
-      <path d="M16 30 Q10 30 10 37 Q10 44 16 44" fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1.5"/>
+      <path d="M17 32 Q11 33 11 39 Q11 45 17 46 Q17 44 14 39 Q14 35 17 34Z" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeOpacity="0.18" strokeWidth="1"/>
       {/* Ear R */}
-      <path d="M64 30 Q70 30 70 37 Q70 44 64 44" fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1.5"/>
-      {/* Eyes */}
-      <ellipse cx="31" cy="33" rx="5" ry="3" {...G.feat}/>
-      <ellipse cx="49" cy="33" rx="5" ry="3" {...G.feat}/>
-      {/* Eyebrows */}
-      <path d="M25 27 Q31 24 37 27" {...G.dim}/>
-      <path d="M43 27 Q49 24 55 27" {...G.dim}/>
-      {/* Nose */}
-      <path d="M38 38 L36 48 Q40 51 44 48 L42 38" {...G.dim}/>
-      {/* Mouth closed */}
-      <path d="M33 58 Q40 62 47 58" {...G.line}/>
+      <path d="M63 32 Q69 33 69 39 Q69 45 63 46 Q63 44 66 39 Q66 35 63 34Z" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeOpacity="0.18" strokeWidth="1"/>
+      {/* Brow L — arched */}
+      <path d="M23 27 Q29 23 35 25" fill="none" stroke="currentColor" strokeOpacity="0.35" strokeWidth="1.4" strokeLinecap="round"/>
+      {/* Brow R */}
+      <path d="M45 25 Q51 23 57 27" fill="none" stroke="currentColor" strokeOpacity="0.35" strokeWidth="1.4" strokeLinecap="round"/>
+      {/* Eye L — almond */}
+      <path d="M23 33 Q26 30 30 31 Q34 30 37 33 Q34 36 30 36 Q26 36 23 33Z" fill="currentColor" fillOpacity="0.13" stroke="currentColor" strokeOpacity="0.3" strokeWidth="1"/>
+      <circle cx="30" cy="33" r="2" fill="currentColor" fillOpacity="0.18"/>
+      {/* Eye R */}
+      <path d="M43 33 Q46 30 50 31 Q54 30 57 33 Q54 36 50 36 Q46 36 43 33Z" fill="currentColor" fillOpacity="0.13" stroke="currentColor" strokeOpacity="0.3" strokeWidth="1"/>
+      <circle cx="50" cy="33" r="2" fill="currentColor" fillOpacity="0.18"/>
+      {/* Nose bridge + tip */}
+      <path d="M40 36 L39 44 Q37 48 38 50 Q40 52 42 50 Q43 48 41 44 L40 36" fill="none" stroke="currentColor" strokeOpacity="0.2" strokeWidth="1.1" strokeLinecap="round"/>
+      {/* Nostrils */}
+      <path d="M36 50 Q37 52 39 51" fill="none" stroke="currentColor" strokeOpacity="0.18" strokeWidth="1"/>
+      <path d="M44 50 Q43 52 41 51" fill="none" stroke="currentColor" strokeOpacity="0.18" strokeWidth="1"/>
+      {/* Philtrum */}
+      <path d="M38 52 Q40 54 42 52" fill="none" stroke="currentColor" strokeOpacity="0.12" strokeWidth="0.8"/>
+      {/* Upper lip */}
+      <path d="M32 56 Q36 54 40 55 Q44 54 48 56" fill="none" stroke="currentColor" strokeOpacity="0.28" strokeWidth="1.2" strokeLinecap="round"/>
+      {/* Lower lip */}
+      <path d="M32 56 Q36 60 40 60 Q44 60 48 56" fill="currentColor" fillOpacity="0.08" stroke="currentColor" strokeOpacity="0.22" strokeWidth="1"/>
+      {/* Chin dimple */}
+      <path d="M38 63 Q40 65 42 63" fill="none" stroke="currentColor" strokeOpacity="0.1" strokeWidth="0.8"/>
     </svg>
   ),
   frontal_smile: (
