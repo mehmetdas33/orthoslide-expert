@@ -564,6 +564,18 @@ def generate_pptx(
     slide_h = prs.slide_height
     blank_layout = prs.slide_layouts[6]  # blank layout
 
+    def _insert_slide_at(prs, position):
+        """Move the last-added slide to the given 0-based position."""
+        xml_slides = prs.slides._sldIdLst
+        slides = list(xml_slides)
+        el = slides[-1]
+        xml_slides.remove(el)
+        xml_slides.insert(position, el)
+
+    # Composite slayt index 20 (slayt 21). Ekstra slaytlar hemen arkasından gelecek.
+    AFTER_COMPOSITE = 20  # 0-based index of composite slide
+    next_insert = AFTER_COMPOSITE + 1  # slayt 22 pozisyonu
+
     # ── Slayt 22: Kapanış videosu (eğer varsa PA filminden önce eklenir) ──────
     if closing_video_path and os.path.isfile(closing_video_path):
         try:
@@ -573,6 +585,8 @@ def generate_pptx(
                 left=0, top=0, width=slide_w, height=slide_h,
                 mime_type='video/mp4',
             )
+            _insert_slide_at(prs, next_insert)
+            next_insert += 1
             print(f"  [OK] Slayt 22 — kapanış videosu eklendi")
         except Exception as ve:
             print(f"  [WARN] Video slaytı atlandı: {ve}")
@@ -583,6 +597,7 @@ def generate_pptx(
         try:
             pa_slide = prs.slides.add_slide(blank_layout)
             pa_slide.shapes.add_picture(pa_path, 0, 0, slide_w, slide_h)
+            _insert_slide_at(prs, next_insert)
             print(f"  [OK] Slayt 23 — PA filmi eklendi")
         except Exception as pe:
             print(f"  [WARN] PA filmi slaytı atlandı: {pe}")
