@@ -194,11 +194,14 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
     if (points.length === 2) {
       drawMidlineOnly(ctx, natW, natH, points.map(p => ({ x: p.x * sX, y: p.y * sY })), (sX + sY) / 2)
     }
+    const midlineFraction = points.length === 2
+      ? (points[0].x + points[1].x) / 2 / dispW
+      : null
     fc.toBlob(blob => {
       if (!blob) { setSaving(false); return }
       const ext  = points.length === 2 ? '_midline.jpg' : '.jpg'
       const name = file.name.replace(/\.[^.]+$/, '') + ext
-      onConfirm(new File([blob], name, { type: 'image/jpeg' }), ph109, file)
+      onConfirm(new File([blob], name, { type: 'image/jpeg' }), ph109, file, midlineFraction)
     }, 'image/jpeg', 0.95)
   }, [points, file, dispW, dispH, ph109, onConfirm, saving])
 

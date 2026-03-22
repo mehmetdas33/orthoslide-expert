@@ -648,6 +648,7 @@ export default function ImageGrid({ images, onImageDrop, onImageRemove, onImageR
   const [bulkFiles, setBulkFiles] = useState([])
   const [lightbox, setLightbox] = useState(null)
   const nextId = useRef(0)
+  const bulkSlotMap = useRef({}) // slotKey → bulkItem (tracks bulk-originated slots)
 
   const addBulkFiles = useCallback((fileList) => {
     const items = Array.from(fileList).map(f => ({
@@ -669,10 +670,27 @@ export default function ImageGrid({ images, onImageDrop, onImageRemove, onImageR
   const handleBulkDrop = useCallback((slotKey, bulkId) => {
     const item = bulkFiles.find(x => x.id === bulkId)
     if (item) {
+      bulkSlotMap.current[slotKey] = item
       onImageDrop(slotKey, item.file)
       removeBulkFile(bulkId)
     }
   }, [bulkFiles, onImageDrop, removeBulkFile])
+
+  const handleSlotDrop = useCallback((slotKey, file) => {
+    // Direct drop clears any bulk tracking for this slot
+    delete bulkSlotMap.current[slotKey]
+    onImageDrop(slotKey, file)
+  }, [onImageDrop])
+
+  const handleSlotRemove = useCallback((slotKey) => {
+    const bulkItem = bulkSlotMap.current[slotKey]
+    if (bulkItem) {
+      delete bulkSlotMap.current[slotKey]
+      const newUrl = URL.createObjectURL(bulkItem.file)
+      setBulkFiles(prev => [...prev, { ...bulkItem, url: newUrl }])
+    }
+    onImageRemove(slotKey)
+  }, [onImageRemove])
 
   // Count assigned images per group for the header badges
   const assignedCount = IMAGE_SLOTS.filter(s => images[s.key]).length
@@ -718,8 +736,8 @@ export default function ImageGrid({ images, onImageDrop, onImageRemove, onImageR
               key={slot.key}
               slot={slot}
               imageFile={images[slot.key]}
-              onDrop={onImageDrop}
-              onRemove={onImageRemove}
+              onDrop={handleSlotDrop}
+              onRemove={handleSlotRemove}
               onBulkDrop={handleBulkDrop}
               onPreview={setLightbox}
               onRotate={onImageRotate}

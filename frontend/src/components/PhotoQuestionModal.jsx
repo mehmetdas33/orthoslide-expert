@@ -259,7 +259,7 @@ function BoltonQuestion({ answers, setAnswer }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function PhotoQuestionModal({ file, questions, onConfirm, onCancel, showMidlineMark, referenceImage, referenceLabel }) {
+export default function PhotoQuestionModal({ file, questions, onConfirm, onCancel, showMidlineMark, referenceImage, referenceLabel, refMidlineX }) {
   const imgRef    = useRef(null)
   const refImgRef = useRef(null)
   const magRef    = useRef(null)
@@ -485,13 +485,21 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
               <div style={{
                 borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)',
                 background: '#0d0d0d', maxHeight: loaded ? dispH : 200, maxWidth: 200,
-                cursor: 'crosshair',
+                cursor: 'crosshair', position: 'relative',
               }}
                 onMouseMove={(e) => makeMouseMove('ref')(e)}
                 onMouseLeave={handleMouseLeave}
               >
                 <img ref={refImgRef} src={refSrc} alt="referans"
                   style={{ display: 'block', maxWidth: 200, maxHeight: loaded ? dispH : 200, objectFit: 'contain' }} />
+                {refMidlineX !== null && refMidlineX !== undefined && (
+                  <div style={{
+                    position: 'absolute', top: 0, left: `${refMidlineX * 100}%`, width: 2, height: '100%',
+                    background: 'rgba(59,130,246,0.85)', pointerEvents: 'none',
+                    boxShadow: '0 0 6px rgba(59,130,246,0.7)',
+                    transform: 'translateX(-1px)',
+                  }} />
+                )}
               </div>
             </div>
           )}

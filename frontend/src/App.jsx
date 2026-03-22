@@ -73,6 +73,7 @@ function App() {
   const [statusMessage, setStatusMessage] = useState('')
   const [pendingAnnotation, setPendingAnnotation] = useState(null)
   const [annotationAnswers, setAnnotationAnswers] = useState({})
+  const [frontalMidlineX, setFrontalMidlineX] = useState(null)
 
   const handleExcelUpload = useCallback(async (rawFile) => {
     setIsLoading(true)
@@ -147,13 +148,14 @@ function App() {
     setImages(prev => ({ ...prev, [slotKey]: rotatedFile }))
   }, [])
 
-  const handlePupilConfirm = useCallback((annotatedFile, ph109, originalFile) => {
+  const handlePupilConfirm = useCallback((annotatedFile, ph109, originalFile, midlineX) => {
     setImages(prev => ({
       ...prev,
       frontal_smile: annotatedFile,          // with midline → slide 4
       frontal_smile_plain: originalFile,     // original → composite slide (no midline)
     }))
     if (ph109) setAnnotationAnswers(prev => ({ ...prev, ph109 }))
+    if (midlineX !== null && midlineX !== undefined) setFrontalMidlineX(midlineX)
     setPendingAnnotation(null)
   }, [])
 
@@ -277,6 +279,7 @@ function App() {
             pendingAnnotation.slotKey === 'lower_occlusal'    ? images.upper_occlusal :
             null
           }
+          refMidlineX={pendingAnnotation.slotKey === 'intraoral_frontal' ? frontalMidlineX : null}
           referenceLabel={
             pendingAnnotation.slotKey === 'upper_occlusal' ? 'Alt Oklüzal' :
             pendingAnnotation.slotKey === 'lower_occlusal' ? 'Üst Oklüzal' :
