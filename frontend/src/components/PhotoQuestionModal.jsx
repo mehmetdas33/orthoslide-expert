@@ -192,8 +192,8 @@ function NumberGroup({ items, answers, setAnswer }) {
 }
 
 // ── Bolton question ────────────────────────────────────────────────────────────
-// ph126 = 6-tooth Maksilla value, ph127 = 6-tooth Mandibula value
-// ph128 = 12-tooth Maksilla value, ph129 = 12-tooth Mandibula value
+// ph126 = 6-tooth Maksilla value, ph127 = 12-tooth Maksilla value
+// ph128 = 6-tooth Mandibula value, ph129 = 12-tooth Mandibula value
 function BoltonSection({ title, jawKey, mPh, dPh, answers, setAnswer }) {
   const jaw = answers[jawKey] || ''
 
@@ -252,8 +252,8 @@ function BoltonQuestion({ answers, setAnswer }) {
         </span>
         <span style={{ fontSize: 10, color: C.muted }}>(isteğe bağlı)</span>
       </div>
-      <BoltonSection title="6 Diş"  jawKey="_bjaw6"  mPh="ph126" dPh="ph127" answers={answers} setAnswer={setAnswer} />
-      <BoltonSection title="12 Diş" jawKey="_bjaw12" mPh="ph128" dPh="ph129" answers={answers} setAnswer={setAnswer} />
+      <BoltonSection title="6 Diş"  jawKey="_bjaw6"  mPh="ph126" dPh="ph128" answers={answers} setAnswer={setAnswer} />
+      <BoltonSection title="12 Diş" jawKey="_bjaw12" mPh="ph127" dPh="ph129" answers={answers} setAnswer={setAnswer} />
     </div>
   )
 }
