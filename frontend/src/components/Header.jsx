@@ -43,7 +43,7 @@ export default function Header({ patientInfo, onPatientInfoChange, onGenerate, i
           
           <div className="relative">
             <label className="absolute -top-2 left-3 px-1 text-[10px] font-semibold text-dark-400 bg-dark-900 rounded">
-              Yaş (yıl)
+              Yaş
             </label>
             <input
               id="patient-age-year"
