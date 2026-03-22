@@ -252,6 +252,7 @@ def generate_pptx(
     ceph_data: dict,
     patient_info: dict = None,
     image_paths: dict = None,
+    closing_video_path=None,
 ):
     """
     Generate a completed PPTX from the template.
@@ -557,6 +558,22 @@ def generate_pptx(
         for el in text_elements:
             sp_tree.remove(el)
             sp_tree.append(el)
+
+    # ── Closing video slide ───────────────────────────────────────────────────
+    if closing_video_path and os.path.isfile(closing_video_path):
+        try:
+            blank_layout = prs.slide_layouts[6]  # blank layout
+            video_slide  = prs.slides.add_slide(blank_layout)
+            slide_w = prs.slide_width
+            slide_h = prs.slide_height
+            video_slide.shapes.add_movie(
+                closing_video_path,
+                left=0, top=0, width=slide_w, height=slide_h,
+                mime_type='video/mp4',
+            )
+            print(f"  [OK] Closing video added: {closing_video_path}")
+        except Exception as ve:
+            print(f"  [WARN] Video slide skipped: {ve}")
 
     prs.save(output_path)
     print(f"  [OK] PPTX saved to: {output_path}")

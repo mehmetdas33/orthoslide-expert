@@ -276,7 +276,7 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
             Gülüş Hattı
           </p>
           <div style={{ display: 'flex', gap: 8 }}>
-            {['High', 'Normal', 'Low'].map(opt => (
+            {['High', 'Normal to High', 'Normal', 'Normal to Low', 'Low'].map(opt => (
               <button key={opt} onClick={() => setPh109(prev => prev === opt ? null : opt)}
                 style={{
                   padding: '8px 24px', borderRadius: 9, fontSize: 13, fontWeight: 700,

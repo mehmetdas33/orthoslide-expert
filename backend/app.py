@@ -150,9 +150,16 @@ def generate_pptx_endpoint():
     os.makedirs(session_dir, exist_ok=True)
 
     image_paths = {}
+    closing_video_path = None
     for slot_key, img_file in request.files.items():
-        if img_file.filename:
-            ext = os.path.splitext(img_file.filename)[1] or ".jpg"
+        if not img_file.filename:
+            continue
+        ext = os.path.splitext(img_file.filename)[1] or ".jpg"
+        if slot_key == 'closing_video':
+            video_path = os.path.join(session_dir, f"closing_video{ext}")
+            img_file.save(video_path)
+            closing_video_path = video_path
+        else:
             img_path = os.path.join(session_dir, f"{slot_key}{ext}")
             img_file.save(img_path)
             image_paths[slot_key] = img_path
@@ -168,6 +175,7 @@ def generate_pptx_endpoint():
             ceph_data=ceph_data,
             patient_info=patient_info,
             image_paths=image_paths,
+            closing_video_path=closing_video_path,
         )
         return send_file(
             output_path,

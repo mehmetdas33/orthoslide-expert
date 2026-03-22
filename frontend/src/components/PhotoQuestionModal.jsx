@@ -368,6 +368,29 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
   const setAnswer = (ph, val) => setSimpleAnswers(prev => ({ ...prev, [ph]: val }))
   const setTeethSelection = (ph, teeth) => setTeethSelections(prev => ({ ...prev, [ph]: teeth }))
 
+  const confirmWithBurn = useCallback((answers) => {
+    if (showMidlineMark && midlineX !== null && imgRef.current && loaded) {
+      const img = imgRef.current
+      const natW = img.naturalWidth, natH = img.naturalHeight
+      const fc = document.createElement('canvas')
+      fc.width = natW; fc.height = natH
+      const ctx = fc.getContext('2d')
+      ctx.drawImage(img, 0, 0, natW, natH)
+      ctx.beginPath()
+      ctx.moveTo(midlineX * natW, 0)
+      ctx.lineTo(midlineX * natW, natH)
+      ctx.strokeStyle = '#3B82F6'
+      ctx.lineWidth = Math.max(1.5, natW / dispW * 1.5)
+      ctx.stroke()
+      fc.toBlob(blob => {
+        const burnedFile = new File([blob], file.name.replace(/\.[^.]+$/, '') + '_midline.jpg', { type: 'image/jpeg' })
+        onConfirm(answers, burnedFile)
+      }, 'image/jpeg', 0.95)
+    } else {
+      onConfirm(answers, null)
+    }
+  }, [showMidlineMark, midlineX, loaded, imgRef, dispW, file, onConfirm])
+
   const buildAllAnswers = () => {
     const all = { ...simpleAnswers }
     questions.filter(q => q.type === 'midline').forEach(q => {
@@ -589,12 +612,12 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
             cursor: 'pointer', background: 'rgba(255,255,255,0.05)',
             color: 'rgba(255,255,255,0.45)', border: `1px solid ${C.inactiveBdr}`,
           }}>İptal</button>
-          <button onClick={() => onConfirm({})} style={{
+          <button onClick={() => confirmWithBurn({})} style={{
             padding: '9px 22px', borderRadius: 9, fontSize: 13, fontWeight: 600,
             cursor: 'pointer', background: 'rgba(255,255,255,0.05)',
             color: 'rgba(255,165,0,0.7)', border: '1px solid rgba(255,165,0,0.25)',
           }} title="Fotoğrafı kaydet, analiz alanlarını boş bırak">Pas Geç</button>
-          <button onClick={() => onConfirm(buildAllAnswers())} style={{
+          <button onClick={() => confirmWithBurn(buildAllAnswers())} style={{
             padding: '9px 28px', borderRadius: 9, fontSize: 13, fontWeight: 700,
             cursor: 'pointer', border: 'none',
             background: allDone ? C.active : 'rgba(37,99,235,0.6)',

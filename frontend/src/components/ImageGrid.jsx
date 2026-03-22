@@ -554,7 +554,7 @@ function SlotZone({ slot, imageFile, onDrop, onRemove, onBulkDrop, onPreview, on
       onClick={() => preview ? onPreview({ url: preview, label: slot.label }) : ref.current?.click()}
     >
       <input ref={ref} type="file" accept="image/*" className="hidden"
-        onChange={(e) => { if (e.target.files?.[0]) onDrop(slot.key, e.target.files[0]) }} />
+        onChange={(e) => { if (e.target.files?.[0]) { onDrop(slot.key, e.target.files[0]); e.target.value = '' } }} />
 
       {preview ? (
         <>

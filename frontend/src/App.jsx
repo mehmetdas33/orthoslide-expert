@@ -74,6 +74,8 @@ function App() {
   const [pendingAnnotation, setPendingAnnotation] = useState(null)
   const [annotationAnswers, setAnnotationAnswers] = useState({})
   const [frontalMidlineX, setFrontalMidlineX] = useState(null)
+  const [closingVideo, setClosingVideo] = useState(null)
+  const videoInputRef = useRef(null)
 
   const handleExcelUpload = useCallback(async (rawFile) => {
     setIsLoading(true)
@@ -174,9 +176,9 @@ function App() {
     setPendingAnnotation(null)
   }, [])
 
-  const handleQuestionConfirm = useCallback((answers) => {
+  const handleQuestionConfirm = useCallback((answers, burnedFile) => {
     const { slotKey, file } = pendingAnnotation
-    setImages(prev => ({ ...prev, [slotKey]: file }))
+    setImages(prev => ({ ...prev, [slotKey]: burnedFile || file }))
 
     const final = { ...answers }
 
@@ -239,6 +241,7 @@ function App() {
     }
     formData.append('patient_info', JSON.stringify(finalPatientInfo))
     Object.entries(images).forEach(([key, file]) => formData.append(key, file))
+    if (closingVideo) formData.append('closing_video', closingVideo)
     try {
       const res  = await axios.post(`${API_BASE}/generate-pptx`, formData, { responseType: 'blob' })
       const url  = window.URL.createObjectURL(new Blob([res.data]))
@@ -295,6 +298,44 @@ function App() {
         <ExcelUpload onUpload={handleExcelUpload} isLoading={isLoading} />
         <div className="mt-5">
           <ImageGrid images={images} onImageDrop={handleImageDrop} onImageRemove={handleImageRemove} onImageRotate={handleImageRotate} onReset={handleImageReset} />
+        </div>
+      </div>
+
+      {/* Kapanış Video */}
+      <div style={{ maxWidth: '1600px', margin: '16px auto 0' }}>
+        <div className="glass-card p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <svg className="w-4 h-4 text-purple-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+            </svg>
+            <span className="text-xs font-semibold text-dark-300">Kapanış Videosu</span>
+            <span className="text-[10px] text-dark-500 ml-1">— Kompozit slaytından sonra eklenir</span>
+            {closingVideo && (
+              <button onClick={() => setClosingVideo(null)} className="ml-auto text-[10px] text-red-400/70 hover:text-red-400 border border-red-400/20 rounded px-2 py-0.5">Kaldır</button>
+            )}
+          </div>
+          {closingVideo ? (
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-purple-500/10 border border-purple-500/20">
+              <svg className="w-5 h-5 text-purple-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+              </svg>
+              <span className="text-xs text-purple-300 truncate">{closingVideo.name}</span>
+              <span className="text-[10px] text-dark-500 ml-auto flex-shrink-0">{(closingVideo.size / 1024 / 1024).toFixed(1)} MB</span>
+            </div>
+          ) : (
+            <div className="rounded-lg border-2 border-dashed border-white/10 hover:border-purple-500/30 cursor-pointer transition-all flex items-center gap-3 px-4 py-3"
+              onClick={() => videoInputRef.current?.click()}>
+              <input ref={videoInputRef} type="file" accept="video/*" className="hidden"
+                onChange={(e) => { if (e.target.files?.[0]) { setClosingVideo(e.target.files[0]); e.target.value = '' } }} />
+              <svg className="w-7 h-7 text-dark-600 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+              </svg>
+              <div>
+                <p className="text-[11px] font-medium text-dark-400">Video dosyasını buraya sürükleyin veya tıklayın</p>
+                <p className="text-[10px] text-dark-600 mt-0.5">MP4, MOV, AVI — önerilen: MP4</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
