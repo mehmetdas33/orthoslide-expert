@@ -89,6 +89,22 @@ export default function Header({ patientInfo, onPatientInfoChange, onGenerate, i
 
           <div className="relative">
             <label className="absolute -top-2 left-3 px-1 text-[10px] font-semibold text-dark-400 bg-dark-900 rounded">
+              Hekim İsim Soyisim
+            </label>
+            <input
+              type="text"
+              value={patientInfo.doctor_name || ''}
+              onChange={(e) => {
+                const v = e.target.value.replace(/\b\w/g, c => c.toUpperCase())
+                onPatientInfoChange({ ...patientInfo, doctor_name: v })
+              }}
+              className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-ortho-500 focus:ring-1 focus:ring-ortho-500/30 transition-all w-36 lg:w-44"
+              placeholder="Hekim adı..."
+            />
+          </div>
+
+          <div className="relative">
+            <label className="absolute -top-2 left-3 px-1 text-[10px] font-semibold text-dark-400 bg-dark-900 rounded">
               Şikayet
             </label>
             <select

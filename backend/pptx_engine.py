@@ -518,6 +518,14 @@ def generate_pptx(
         if patient_info.get("age"):
             placeholder_text_map["Placeholder 37"] = {"value": patient_info["age"], "status": "normal"}
 
+        # PH300: Hekim adı — "Dt. İsim Soyisim" formatında
+        _doc_raw = str(patient_info.get("doctor_name", "") or "").strip()
+        if _doc_raw:
+            _doc_titled = " ".join(w.capitalize() for w in _doc_raw.split())
+            placeholder_text_map["Placeholder 300"] = {
+                "value": f"Dt. {_doc_titled}", "status": "normal", "bold": False
+            }
+
     # Sort keys by length descending so "Placeholder 10" is processed before "Placeholder 1"
     sorted_keys = sorted(placeholder_text_map.keys(), key=len, reverse=True)
     for find_text in sorted_keys:
