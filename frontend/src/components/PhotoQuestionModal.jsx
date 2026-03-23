@@ -497,14 +497,14 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
               </span>
               <div style={{
                 borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)',
-                background: '#0d0d0d', maxHeight: loaded ? dispH : 200, maxWidth: 200,
+                background: '#0d0d0d', width: loaded ? dispW : 200, height: loaded ? dispH : 200,
                 cursor: 'crosshair', position: 'relative',
               }}
                 onMouseMove={(e) => makeMouseMove('ref')(e)}
                 onMouseLeave={handleMouseLeave}
               >
                 <img ref={refImgRef} src={refSrc} alt="referans"
-                  style={{ display: 'block', maxWidth: 200, maxHeight: loaded ? dispH : 200, objectFit: 'contain' }} />
+                  style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }} />
                 {refMidlineX !== null && refMidlineX !== undefined && (
                   <div style={{
                     position: 'absolute', top: 0, left: `${refMidlineX * 100}%`, width: 2, height: '100%',
