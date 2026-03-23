@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
+import JSZip from 'jszip'
 
 // ── Slot definitions  (key must match IMAGE_SLOT_MAP in pptx_engine.py) ──────
 const IMAGE_SLOTS = [
@@ -478,13 +479,13 @@ function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
         onDrop={onDrop}
         onClick={() => ref.current?.click()}
       >
-        <input ref={ref} type="file" accept="image/*" multiple className="hidden" onChange={onChange} />
+        <input ref={ref} type="file" accept="image/*,.zip" multiple className="hidden" onChange={onChange} />
         <svg className="w-7 h-7 text-dark-600 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
           <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
         </svg>
         <div>
-          <p className="text-[11px] font-medium text-dark-400">Tüm fotoğrafları buraya sürükleyin veya tıklayın</p>
-          <p className="text-[10px] text-dark-600 mt-0.5">Yüklenen görüntüleri aşağıdaki kutulara sürükleyerek yerleştirin</p>
+          <p className="text-[11px] font-medium text-dark-400">Fotoğraf veya ZIP dosyası sürükleyin / tıklayın</p>
+          <p className="text-[10px] text-dark-600 mt-0.5">ZIP: içindeki görseller otomatik eklenir · Tek tek: aşağıya sürükleyin</p>
         </div>
       </div>
 
@@ -700,12 +701,41 @@ export default function ImageGrid({ images, onImageDrop, onImageRemove, onImageR
   const bulkSlotMap = useRef({}) // slotKey → bulkItem (tracks bulk-originated slots)
 
   const addBulkFiles = useCallback((fileList) => {
-    const items = Array.from(fileList).map(f => ({
-      id: String(nextId.current++),
-      file: f,
-      url: URL.createObjectURL(f),
-    }))
-    setBulkFiles(prev => [...prev, ...items])
+    const files = Array.from(fileList)
+    const zipFiles = files.filter(f => f.name.toLowerCase().endsWith('.zip'))
+    const imgFiles = files.filter(f => !f.name.toLowerCase().endsWith('.zip') && f.type.startsWith('image/'))
+
+    if (imgFiles.length > 0) {
+      const items = imgFiles.map(f => ({
+        id: String(nextId.current++),
+        file: f,
+        url: URL.createObjectURL(f),
+      }))
+      setBulkFiles(prev => [...prev, ...items])
+    }
+
+    zipFiles.forEach(zipFile => {
+      JSZip.loadAsync(zipFile).then(zip => {
+        const promises = []
+        zip.forEach((path, entry) => {
+          if (!entry.dir && /\.(jpe?g|png|gif|webp)$/i.test(path)) {
+            promises.push(
+              entry.async('blob').then(blob => {
+                const filename = path.split('/').pop()
+                const mime = /\.png$/i.test(filename) ? 'image/png'
+                           : /\.webp$/i.test(filename) ? 'image/webp'
+                           : 'image/jpeg'
+                const file = new File([blob], filename, { type: mime })
+                return { id: String(nextId.current++), file, url: URL.createObjectURL(file) }
+              })
+            )
+          }
+        })
+        Promise.all(promises).then(items => {
+          if (items.length > 0) setBulkFiles(prev => [...prev, ...items])
+        })
+      }).catch(e => console.error('ZIP okuma hatası:', e))
+    })
   }, [])
 
   const removeBulkFile = useCallback((id) => {

@@ -592,13 +592,24 @@ def generate_pptx(
     next_insert = AFTER_COMPOSITE + 1  # slayt 22 pozisyonu
 
     # ── Slayt 22: Kapanış videosu (eğer varsa PA filminden önce eklenir) ──────
+    _VIDEO_MIME_MAP = {
+        '.mp4':  'video/mp4',
+        '.m4v':  'video/mp4',
+        '.mov':  'video/quicktime',
+        '.avi':  'video/avi',
+        '.wmv':  'video/x-ms-wmv',
+        '.webm': 'video/webm',
+        '.mkv':  'video/x-matroska',
+    }
     if closing_video_path and os.path.isfile(closing_video_path):
         try:
+            _ext = os.path.splitext(closing_video_path)[1].lower()
+            _mime = _VIDEO_MIME_MAP.get(_ext, 'video/mp4')
             video_slide = prs.slides.add_slide(blank_layout)
             video_slide.shapes.add_movie(
                 closing_video_path,
                 left=0, top=0, width=slide_w, height=slide_h,
-                mime_type='video/mp4',
+                mime_type=_mime,
             )
             _insert_slide_at(prs, next_insert)
             next_insert += 1
