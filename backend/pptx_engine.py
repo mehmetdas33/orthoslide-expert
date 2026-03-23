@@ -77,13 +77,13 @@ IMAGE_SLOT_MAP = {
 
     # Radyografi
     "panoramic":         [{"slide": 8,  "placeholder_idx": 1}],   # Slayt 10 (orig 9→8)
-    "cephalometric":      [{"slide": 10, "placeholder_idx": 1},   # Slayt 11 (orig 11→10)
-                          {"slide": 11, "placeholder_idx": 1},    # Slayt 12
-                          {"slide": 12, "placeholder_idx": 1},    # Slayt 13 (uncropped)
-                          {"slide": 15, "placeholder_idx": 1}],   # Slayt 16 (ham olmayan, kroplanmamış)
+    "cephalometric":      [{"slide": 10, "placeholder_idx": 1, "fit": "contain"},   # Slayt 11
+                          {"slide": 11, "placeholder_idx": 1, "fit": "contain"},    # Slayt 12
+                          {"slide": 12, "placeholder_idx": 1, "fit": "contain"},    # Slayt 13 (uncropped)
+                          {"slide": 15, "placeholder_idx": 1, "fit": "contain"}],   # Slayt 16
     "cephalometric_crop": [{"slide": 13, "placeholder_idx": 1, "fit": "contain"}],  # Slayt 14
     "cephalometric_line": [{"slide": 14, "placeholder_idx": 1, "fit": "contain"}],  # Slayt 15
-    "ceph_raw":          [{"slide": 16, "placeholder_idx": 1}],   # Slayt 18 (orig 17→16)
+    "ceph_raw":          [{"slide": 16, "placeholder_idx": 1, "fit": "contain"}],   # Slayt 18
     "wrist":             [{"slide": 17, "placeholder_idx": 2}],   # Slayt 19 (orig 18→17)
 }
 
