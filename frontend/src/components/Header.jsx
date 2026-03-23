@@ -107,18 +107,24 @@ export default function Header({ patientInfo, onPatientInfoChange, onGenerate, i
             <label className="absolute -top-2 left-3 px-1 text-[10px] font-semibold text-dark-400 bg-dark-900 rounded">
               Şikayet
             </label>
-            <select
+            <input
               id="patient-complaint"
+              type="text"
+              list="complaint-options"
               value={patientInfo.complaint ?? 'My teeth are crooked'}
               onChange={(e) => onPatientInfoChange({ ...patientInfo, complaint: e.target.value })}
-              className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-ortho-500 focus:ring-1 focus:ring-ortho-500/30 transition-all w-40 lg:w-56"
-            >
-              <option value="My teeth are crooked">My teeth are crooked</option>
-              <option value="Seconder Motivation">Seconder Motivation</option>
-              <option value="I dont like my teeth appearence">I dont like my teeth appearence</option>
-              <option value="I have impacted teeth">I have impacted teeth</option>
-              <option value="I have asymmetry">I have asymmetry</option>
-            </select>
+              className="bg-dark-900 border border-dark-700 rounded-lg px-3 py-2 text-sm text-white/90 focus:outline-none focus:border-ortho-500 focus:ring-1 focus:ring-ortho-500/30 transition-all w-40 lg:w-64"
+              placeholder="Şikayet girin veya seçin..."
+            />
+            <datalist id="complaint-options">
+              <option value="My teeth are crooked" />
+              <option value="Seconder Motivation" />
+              <option value="I dont like my teeth appearence" />
+              <option value="I have impacted teeth" />
+              <option value="I have asymmetry" />
+              <option value="My lower jaw is on backward position" />
+              <option value="My lower jaw is on forward position" />
+            </datalist>
           </div>
         </div>
 
