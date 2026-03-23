@@ -284,6 +284,21 @@ def generate_pptx(
                 "value": display_val, "status": status, "bold": True
             }
 
+    # PH3: ANB = SNA − SNB (recalculated; overrides Excel row value)
+    _sna_v = ceph_data.get("SNA")
+    _snb_v = ceph_data.get("SNB")
+    if _sna_v is not None and _snb_v is not None:
+        try:
+            _anb_calc = float(_sna_v) - float(_snb_v)
+            _anb_ref  = REFERENCE_RANGES.get("ANB", {})
+            _anb_s    = ("high" if _anb_calc > _anb_ref.get("high", 4)
+                         else ("low" if _anb_calc < _anb_ref.get("low", 0) else "normal"))
+            placeholder_text_map["Placeholder 3"] = {
+                "value": str(round(_anb_calc)), "status": _anb_s, "bold": True
+            }
+        except (ValueError, TypeError):
+            pass
+
     # PH38: ANB → Class I/II/III skeletal relationship (eski işlev)
     placeholder_text_map["Placeholder 38"] = {
         "value": get_placeholder_38_text(ceph_data), "status": "normal", "bold": True
@@ -587,8 +602,36 @@ def generate_pptx(
         xml_slides.remove(el)
         xml_slides.insert(position, el)
 
-    # Composite slayt index 20 (slayt 21). Ekstra slaytlar hemen arkasından gelecek.
+    # ── Slayt 20 (1-tabanlı = 0-tabanlı 19): yaşa göre sil veya fotoyu yerleştir ──
+    _patient_age = None
+    if patient_info:
+        try:
+            _patient_age = float(str(patient_info.get("age", "")).strip())
+        except (ValueError, TypeError):
+            pass
+
     AFTER_COMPOSITE = 20  # 0-based index of composite slide
+    if _patient_age is not None and len(prs.slides) > 19:
+        if _patient_age > 18:
+            # 18 yaş üstü → slayt 20'yi (0-tabanlı 19) sil
+            _sldIdLst = prs.slides._sldIdLst
+            _sldIdLst.remove(list(_sldIdLst)[19])
+            AFTER_COMPOSITE = 19  # kompozit bir geri kaydı
+            print(f"  [OK] Slayt 20 silindi (yaş {_patient_age} > 18)")
+        else:
+            # 18 yaş altı → sağ üst köşeye intraoral cephe fotosunu yerleştir
+            _intra_path = (image_paths or {}).get("intraoral_frontal", "")
+            if _intra_path and os.path.isfile(_intra_path):
+                try:
+                    _slide19 = prs.slides[19]
+                    _left = slide_w // 2
+                    _w    = slide_w // 2
+                    _h    = slide_h // 2
+                    _slide19.shapes.add_picture(_intra_path, _left, Emu(0), _w, _h)
+                    print(f"  [OK] Slayt 20 — intraoral cephe sağ üst köşeye eklendi")
+                except Exception as _e19:
+                    print(f"  [WARN] Slayt 20 fotoğraf eklenemedi: {_e19}")
+
     next_insert = AFTER_COMPOSITE + 1  # slayt 22 pozisyonu
 
     # ── Slayt 22: Kapanış videosu (eğer varsa PA filminden önce eklenir) ──────
@@ -622,7 +665,13 @@ def generate_pptx(
     if pa_path and os.path.isfile(pa_path):
         try:
             pa_slide = prs.slides.add_slide(blank_layout)
-            pa_slide.shapes.add_picture(pa_path, 0, 0, slide_w, slide_h)
+            # Fill height, preserve aspect ratio (no distortion), center horizontally
+            with Image.open(pa_path) as _pa_img:
+                _pa_iw, _pa_ih = _pa_img.size
+            _pa_scale   = slide_h / max(_pa_ih, 1)
+            _pa_pic_w   = int(_pa_iw * _pa_scale)
+            _pa_pic_left = (slide_w - _pa_pic_w) // 2
+            pa_slide.shapes.add_picture(pa_path, _pa_pic_left, 0, _pa_pic_w, slide_h)
             _insert_slide_at(prs, next_insert)
             print(f"  [OK] Slayt 23 — PA filmi eklendi")
         except Exception as pe:

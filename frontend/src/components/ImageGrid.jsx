@@ -447,10 +447,37 @@ function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
   const folderRef = useRef(null)
 
   const stop = (e) => { e.preventDefault(); e.stopPropagation() }
-  const onDrop = (e) => {
+
+  const onDrop = async (e) => {
     stop(e); setDragging(false)
-    if (e.dataTransfer.files?.length) onFilesAdded(e.dataTransfer.files)
+    const items = e.dataTransfer?.items
+    if (items?.length) {
+      const files = []
+      const readEntry = (entry) => new Promise((resolve) => {
+        if (entry.isFile) {
+          entry.getFile(f => { files.push(f); resolve() }, resolve)
+        } else if (entry.isDirectory) {
+          const reader = entry.createReader()
+          const readBatch = () => reader.readEntries(async (entries) => {
+            if (!entries.length) { resolve(); return }
+            await Promise.all(entries.map(readEntry))
+            readBatch()
+          }, resolve)
+          readBatch()
+        } else {
+          resolve()
+        }
+      })
+      await Promise.all(Array.from(items).map(item => {
+        const entry = item.webkitGetAsEntry?.()
+        return entry ? readEntry(entry) : Promise.resolve()
+      }))
+      const imageFiles = files.filter(f => f.type.startsWith('image/'))
+      if (imageFiles.length) { onFilesAdded(imageFiles); return }
+    }
+    if (e.dataTransfer?.files?.length) onFilesAdded(e.dataTransfer.files)
   }
+
   const onChange = (e) => {
     if (e.target.files?.length) { onFilesAdded(e.target.files); e.target.value = '' }
   }
@@ -470,14 +497,13 @@ function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
 
       {/* Drop zone */}
       <div
-        className={`rounded-lg border-2 border-dashed cursor-pointer transition-all flex items-center gap-3 px-4 py-3 ${
+        className={`rounded-lg border-2 border-dashed transition-all flex items-center gap-3 px-4 py-3 ${
           dragging ? 'border-accent-blue/70 bg-accent-blue/5' : 'border-white/10 hover:border-white/20 hover:bg-white/2'
         }`}
         onDragEnter={(e) => { stop(e); setDragging(true) }}
         onDragLeave={(e) => { stop(e); setDragging(false) }}
         onDragOver={stop}
         onDrop={onDrop}
-        onClick={() => ref.current?.click()}
       >
         <input ref={ref} type="file" accept="image/*" multiple className="hidden" onChange={onChange} />
         <input ref={folderRef} type="file" accept="image/*" multiple className="hidden" onChange={onChange}
@@ -486,18 +512,29 @@ function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
           <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
         </svg>
         <div>
-          <p className="text-[11px] font-medium text-dark-400">Fotoğrafları buraya sürükleyin veya tıklayın</p>
+          <p className="text-[11px] font-medium text-dark-400">Fotoğraf veya klasör sürükleyin</p>
           <p className="text-[10px] text-dark-600 mt-0.5">Yüklenen görselleri aşağıdaki kutulara sürükleyerek yerleştirin</p>
         </div>
-        <button
-          onClick={(e) => { e.stopPropagation(); folderRef.current?.click() }}
-          className="ml-auto flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold text-dark-300 border border-white/10 hover:border-accent-blue/40 hover:text-accent-blue transition-all"
-        >
-          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-          </svg>
-          Klasör Seç
-        </button>
+        <div className="ml-auto flex-shrink-0 flex gap-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); ref.current?.click() }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold text-dark-300 border border-white/10 hover:border-accent-blue/40 hover:text-accent-blue transition-all"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+            </svg>
+            Dosya Seç
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); folderRef.current?.click() }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold text-dark-300 border border-white/10 hover:border-accent-blue/40 hover:text-accent-blue transition-all"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            Klasör Seç
+          </button>
+        </div>
       </div>
 
       {/* Thumbnails */}
