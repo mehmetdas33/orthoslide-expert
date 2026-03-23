@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 const COMPLAINTS = [
   'My teeth are crooked',
@@ -60,19 +61,19 @@ function ComplaintCombobox({ value, onChange }) {
         </svg>
       </button>
 
-      {/* Dropdown rendered via fixed position — escapes glass-card overflow:hidden */}
-      {open && rect && (
+      {/* Portal: rendered directly on body — immune to backdrop-filter stacking contexts */}
+      {open && rect && createPortal(
         <div style={{
           position: 'fixed',
           top: rect.bottom + 4,
           left: rect.left,
           width: rect.width,
-          zIndex: 9999,
+          zIndex: 99999,
           background: '#1a1f2e',
           border: '1px solid rgba(255,255,255,0.14)',
           borderRadius: 12,
           overflow: 'hidden',
-          boxShadow: '0 12px 40px rgba(0,0,0,0.65)',
+          boxShadow: '0 16px 48px rgba(0,0,0,0.7)',
         }}>
           {list.map(c => (
             <div
@@ -88,7 +89,8 @@ function ComplaintCombobox({ value, onChange }) {
               onMouseLeave={e => { e.currentTarget.style.background = value === c ? 'rgba(59,130,246,0.14)' : 'transparent' }}
             >{c}</div>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
