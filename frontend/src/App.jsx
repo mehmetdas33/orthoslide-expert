@@ -38,6 +38,9 @@ const SLOT_QUESTIONS = {
     { type: 'number', label: 'Sol',  placeholder: 'ph124', signed: true },
     // ph125 = ph123 + ph124 (auto-calculated)
     { type: 'bolton', label: 'Bolton Analizi', optional: true },
+    { type: 'header', label: 'Hays-Nance Yer Darlığı Analizi' },
+    { type: 'number', label: 'Üst Çene (mm)', placeholder: 'ph131', signed: true },
+    { type: 'number', label: 'Alt Çene (mm)', placeholder: 'ph132', signed: true },
   ],
   lower_occlusal: [
     { type: 'header', label: 'Maxilla' },
@@ -47,6 +50,9 @@ const SLOT_QUESTIONS = {
     { type: 'number', label: 'Sağ',  placeholder: 'ph123', signed: true },
     { type: 'number', label: 'Sol',  placeholder: 'ph124', signed: true },
     { type: 'bolton', label: 'Bolton Analizi', optional: true },
+    { type: 'header', label: 'Hays-Nance Yer Darlığı Analizi' },
+    { type: 'number', label: 'Üst Çene (mm)', placeholder: 'ph131', signed: true },
+    { type: 'number', label: 'Alt Çene (mm)', placeholder: 'ph132', signed: true },
   ],
   wrist: [
     { type: 'buttons', label: 'İskelet Olgunluk Evresi', placeholder: 'ph130',

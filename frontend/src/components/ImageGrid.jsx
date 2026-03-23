@@ -444,6 +444,7 @@ function BulkThumb({ item, onRemove }) {
 function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
   const [dragging, setDragging] = useState(false)
   const ref = useRef(null)
+  const folderRef = useRef(null)
 
   const stop = (e) => { e.preventDefault(); e.stopPropagation() }
   const onDrop = (e) => {
@@ -479,13 +480,24 @@ function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
         onClick={() => ref.current?.click()}
       >
         <input ref={ref} type="file" accept="image/*" multiple className="hidden" onChange={onChange} />
+        <input ref={folderRef} type="file" accept="image/*" multiple className="hidden" onChange={onChange}
+          {...{ webkitdirectory: '', directory: '' }} />
         <svg className="w-7 h-7 text-dark-600 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
           <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
         </svg>
         <div>
-          <p className="text-[11px] font-medium text-dark-400">Tüm fotoğrafları buraya sürükleyin veya tıklayın</p>
-          <p className="text-[10px] text-dark-600 mt-0.5">Yüklenen görüntüleri aşağıdaki kutulara sürükleyerek yerleştirin</p>
+          <p className="text-[11px] font-medium text-dark-400">Fotoğrafları buraya sürükleyin veya tıklayın</p>
+          <p className="text-[10px] text-dark-600 mt-0.5">Yüklenen görselleri aşağıdaki kutulara sürükleyerek yerleştirin</p>
         </div>
+        <button
+          onClick={(e) => { e.stopPropagation(); folderRef.current?.click() }}
+          className="ml-auto flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold text-dark-300 border border-white/10 hover:border-accent-blue/40 hover:text-accent-blue transition-all"
+        >
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          Klasör Seç
+        </button>
       </div>
 
       {/* Thumbnails */}
@@ -700,12 +712,14 @@ export default function ImageGrid({ images, onImageDrop, onImageRemove, onImageR
   const bulkSlotMap = useRef({}) // slotKey → bulkItem (tracks bulk-originated slots)
 
   const addBulkFiles = useCallback((fileList) => {
-    const items = Array.from(fileList).map(f => ({
-      id: String(nextId.current++),
-      file: f,
-      url: URL.createObjectURL(f),
-    }))
-    setBulkFiles(prev => [...prev, ...items])
+    const items = Array.from(fileList)
+      .filter(f => f.type.startsWith('image/'))
+      .map(f => ({
+        id: String(nextId.current++),
+        file: f,
+        url: URL.createObjectURL(f),
+      }))
+    if (items.length > 0) setBulkFiles(prev => [...prev, ...items])
   }, [])
 
   const removeBulkFile = useCallback((id) => {
