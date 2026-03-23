@@ -1,4 +1,85 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
+
+const COMPLAINTS = [
+  'My teeth are crooked',
+  'Seconder Motivation',
+  'I dont like my teeth appearence',
+  'I have impacted teeth',
+  'I have asymmetry',
+  'My lower jaw is on backward position',
+  'My lower jaw is on forward position',
+]
+
+function ComplaintCombobox({ value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [])
+
+  const filtered = COMPLAINTS.filter(c => c.toLowerCase().includes((value || '').toLowerCase()))
+  const list = filtered.length ? filtered : COMPLAINTS
+
+  return (
+    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <input
+          type="text"
+          value={value || ''}
+          onChange={e => { onChange(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          placeholder="Şikayet girin veya seçin..."
+          style={{
+            flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+            borderRight: 'none', borderRadius: '12px 0 0 12px',
+            color: 'rgba(255,255,255,0.9)', fontSize: 13, padding: '8px 12px',
+            outline: 'none', minWidth: 0,
+          }}
+        />
+        <button
+          type="button"
+          onMouseDown={e => { e.preventDefault(); setOpen(o => !o) }}
+          style={{
+            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+            borderLeft: 'none', borderRadius: '0 12px 12px 0',
+            color: 'rgba(255,255,255,0.35)', padding: '8px 10px',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0,
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+            <polyline points={open ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}/>
+          </svg>
+        </button>
+      </div>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 100,
+          background: '#1a1f2e', border: '1px solid rgba(255,255,255,0.12)',
+          borderRadius: 12, overflow: 'hidden',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+        }}>
+          {list.map(c => (
+            <div
+              key={c}
+              onMouseDown={e => { e.preventDefault(); onChange(c); setOpen(false) }}
+              style={{
+                padding: '9px 14px', fontSize: 12, cursor: 'pointer',
+                color: value === c ? 'rgba(96,165,250,1)' : 'rgba(255,255,255,0.7)',
+                background: value === c ? 'rgba(59,130,246,0.12)' : 'transparent',
+                transition: 'background 0.1s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+              onMouseLeave={e => e.currentTarget.style.background = value === c ? 'rgba(59,130,246,0.12)' : 'transparent'}
+            >{c}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const field = {
   wrapper: 'flex flex-col gap-1',
@@ -154,27 +235,12 @@ export default function Header({ patientInfo, onPatientInfoChange, onGenerate, i
         </div>
 
         {/* Şikayet */}
-        <div className={field.wrapper} style={{ flex: '1 1 200px', minWidth: 200 }}>
+        <div className={field.wrapper} style={{ flex: '1 1 200px', minWidth: 220 }}>
           <label className={field.label}>Şikayet</label>
-          <input
-            id="patient-complaint"
-            type="text"
-            list="complaint-options"
+          <ComplaintCombobox
             value={patientInfo.complaint ?? 'My teeth are crooked'}
-            onChange={(e) => onPatientInfoChange({ ...patientInfo, complaint: e.target.value })}
-            className={field.input}
-            style={{ width: '100%' }}
-            placeholder="Şikayet girin veya seçin..."
+            onChange={v => onPatientInfoChange({ ...patientInfo, complaint: v })}
           />
-          <datalist id="complaint-options">
-            <option value="My teeth are crooked" />
-            <option value="Seconder Motivation" />
-            <option value="I dont like my teeth appearence" />
-            <option value="I have impacted teeth" />
-            <option value="I have asymmetry" />
-            <option value="My lower jaw is on backward position" />
-            <option value="My lower jaw is on forward position" />
-          </datalist>
         </div>
 
       </div>
