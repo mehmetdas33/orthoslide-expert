@@ -497,13 +497,14 @@ function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
 
       {/* Drop zone */}
       <div
-        className={`rounded-lg border-2 border-dashed transition-all flex items-center gap-3 px-4 py-3 ${
+        className={`rounded-lg border-2 border-dashed cursor-pointer transition-all flex items-center gap-3 px-4 py-3 ${
           dragging ? 'border-accent-blue/70 bg-accent-blue/5' : 'border-white/10 hover:border-white/20 hover:bg-white/2'
         }`}
         onDragEnter={(e) => { stop(e); setDragging(true) }}
         onDragLeave={(e) => { stop(e); setDragging(false) }}
         onDragOver={stop}
         onDrop={onDrop}
+        onClick={() => ref.current?.click()}
       >
         <input ref={ref} type="file" accept="image/*" multiple className="hidden" onChange={onChange} />
         <input ref={folderRef} type="file" accept="image/*" multiple className="hidden" onChange={onChange}
