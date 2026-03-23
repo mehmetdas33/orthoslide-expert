@@ -12,67 +12,80 @@ const COMPLAINTS = [
 
 function ComplaintCombobox({ value, onChange }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef(null)
+  const [rect, setRect] = useState(null)
+  const wrapRef = useRef(null)
 
+  // Close on outside click
   useEffect(() => {
-    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const close = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [])
 
+  // Recalculate position when opening
+  const openDropdown = () => {
+    if (wrapRef.current) setRect(wrapRef.current.getBoundingClientRect())
+    setOpen(true)
+  }
+
   const filtered = COMPLAINTS.filter(c => c.toLowerCase().includes((value || '').toLowerCase()))
   const list = filtered.length ? filtered : COMPLAINTS
 
+  const inputStyle = {
+    flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+    borderRight: 'none', borderRadius: '12px 0 0 12px',
+    color: 'rgba(255,255,255,0.9)', fontSize: 13, padding: '8px 12px',
+    outline: 'none', minWidth: 0, boxSizing: 'border-box',
+  }
+  const chevronStyle = {
+    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+    borderLeft: 'none', borderRadius: '0 12px 12px 0',
+    color: 'rgba(255,255,255,0.4)', padding: '0 10px',
+    cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0, alignSelf: 'stretch',
+  }
+
   return (
-    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <input
-          type="text"
-          value={value || ''}
-          onChange={e => { onChange(e.target.value); setOpen(true) }}
-          onFocus={() => setOpen(true)}
-          placeholder="Şikayet girin veya seçin..."
-          style={{
-            flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-            borderRight: 'none', borderRadius: '12px 0 0 12px',
-            color: 'rgba(255,255,255,0.9)', fontSize: 13, padding: '8px 12px',
-            outline: 'none', minWidth: 0,
-          }}
-        />
-        <button
-          type="button"
-          onMouseDown={e => { e.preventDefault(); setOpen(o => !o) }}
-          style={{
-            background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-            borderLeft: 'none', borderRadius: '0 12px 12px 0',
-            color: 'rgba(255,255,255,0.35)', padding: '8px 10px',
-            cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0,
-          }}
-        >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <polyline points={open ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}/>
-          </svg>
-        </button>
-      </div>
-      {open && (
+    <div ref={wrapRef} style={{ position: 'relative', width: '100%', display: 'flex' }}>
+      <input
+        type="text"
+        value={value || ''}
+        onChange={e => { onChange(e.target.value); openDropdown() }}
+        onFocus={openDropdown}
+        placeholder="Şikayet girin veya seçin..."
+        style={inputStyle}
+      />
+      <button type="button" onMouseDown={e => { e.preventDefault(); open ? setOpen(false) : openDropdown() }} style={chevronStyle}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+          <polyline points={open ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}/>
+        </svg>
+      </button>
+
+      {/* Dropdown rendered via fixed position — escapes glass-card overflow:hidden */}
+      {open && rect && (
         <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 100,
-          background: '#1a1f2e', border: '1px solid rgba(255,255,255,0.12)',
-          borderRadius: 12, overflow: 'hidden',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+          position: 'fixed',
+          top: rect.bottom + 4,
+          left: rect.left,
+          width: rect.width,
+          zIndex: 9999,
+          background: '#1a1f2e',
+          border: '1px solid rgba(255,255,255,0.14)',
+          borderRadius: 12,
+          overflow: 'hidden',
+          boxShadow: '0 12px 40px rgba(0,0,0,0.65)',
         }}>
           {list.map(c => (
             <div
               key={c}
               onMouseDown={e => { e.preventDefault(); onChange(c); setOpen(false) }}
               style={{
-                padding: '9px 14px', fontSize: 12, cursor: 'pointer',
-                color: value === c ? 'rgba(96,165,250,1)' : 'rgba(255,255,255,0.7)',
-                background: value === c ? 'rgba(59,130,246,0.12)' : 'transparent',
-                transition: 'background 0.1s',
+                padding: '10px 14px', fontSize: 12.5, cursor: 'pointer',
+                color: value === c ? '#60a5fa' : 'rgba(255,255,255,0.72)',
+                background: value === c ? 'rgba(59,130,246,0.14)' : 'transparent',
+                borderBottom: '1px solid rgba(255,255,255,0.05)',
               }}
-              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-              onMouseLeave={e => e.currentTarget.style.background = value === c ? 'rgba(59,130,246,0.12)' : 'transparent'}
+              onMouseEnter={e => { if (value !== c) e.currentTarget.style.background = 'rgba(255,255,255,0.07)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = value === c ? 'rgba(59,130,246,0.14)' : 'transparent' }}
             >{c}</div>
           ))}
         </div>
