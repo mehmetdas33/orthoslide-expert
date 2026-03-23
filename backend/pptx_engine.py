@@ -430,6 +430,7 @@ def generate_pptx(
         "ph120", "ph121", "ph122",                       # maxilla counts (slayt 11)
         "ph123", "ph124", "ph125",                       # mandible counts (slayt 11)
         "ph126", "ph127", "ph128", "ph129",              # bolton (slayt 11)
+        "ph131", "ph132",                                # hays-nance yer darlığı (slayt 11)
     ]
     # Slide 6: plain (no bold, no font override — match template style)
     _ANNOTATION_PLAIN = [
