@@ -13,24 +13,22 @@ const COMPLAINTS = [
 
 function ComplaintCombobox({ value, onChange }) {
   const [open, setOpen] = useState(false)
+  const [typing, setTyping] = useState(false)
   const [rect, setRect] = useState(null)
   const wrapRef = useRef(null)
 
-  // Close on outside click
+  const calcRect = () => { if (wrapRef.current) setRect(wrapRef.current.getBoundingClientRect()) }
+
   useEffect(() => {
-    const close = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false) }
+    const close = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) { setOpen(false); setTyping(false) } }
     document.addEventListener('mousedown', close)
     return () => document.removeEventListener('mousedown', close)
   }, [])
 
-  // Recalculate position when opening
-  const openDropdown = () => {
-    if (wrapRef.current) setRect(wrapRef.current.getBoundingClientRect())
-    setOpen(true)
-  }
-
-  const filtered = COMPLAINTS.filter(c => c.toLowerCase().includes((value || '').toLowerCase()))
-  const list = filtered.length ? filtered : COMPLAINTS
+  // Show filtered list when typing, always show all when just browsing
+  const list = typing
+    ? COMPLAINTS.filter(c => c.toLowerCase().includes((value || '').toLowerCase()))
+    : COMPLAINTS
 
   const inputStyle = {
     flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
@@ -39,10 +37,12 @@ function ComplaintCombobox({ value, onChange }) {
     outline: 'none', minWidth: 0, boxSizing: 'border-box',
   }
   const chevronStyle = {
-    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
-    borderLeft: 'none', borderRadius: '0 12px 12px 0',
-    color: 'rgba(255,255,255,0.4)', padding: '0 10px',
+    background: open ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.05)',
+    border: '1px solid rgba(255,255,255,0.1)', borderLeft: 'none',
+    borderRadius: '0 12px 12px 0',
+    color: open ? '#60a5fa' : 'rgba(255,255,255,0.4)', padding: '0 10px',
     cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0, alignSelf: 'stretch',
+    transition: 'all 0.15s',
   }
 
   return (
@@ -50,38 +50,38 @@ function ComplaintCombobox({ value, onChange }) {
       <input
         type="text"
         value={value || ''}
-        onChange={e => { onChange(e.target.value); openDropdown() }}
-        onFocus={openDropdown}
+        onChange={e => { onChange(e.target.value); setTyping(true); calcRect(); setOpen(true) }}
+        onFocus={() => { setTyping(false); calcRect(); setOpen(true) }}
         placeholder="Şikayet girin veya seçin..."
         style={inputStyle}
       />
-      <button type="button" onMouseDown={e => { e.preventDefault(); open ? setOpen(false) : openDropdown() }} style={chevronStyle}>
+      <button
+        type="button"
+        onMouseDown={e => {
+          e.preventDefault()
+          if (open) { setOpen(false) } else { setTyping(false); calcRect(); setOpen(true) }
+        }}
+        style={chevronStyle}
+      >
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
           <polyline points={open ? '18 15 12 9 6 15' : '6 9 12 15 18 9'}/>
         </svg>
       </button>
 
-      {/* Portal: rendered directly on body — immune to backdrop-filter stacking contexts */}
       {open && rect && createPortal(
         <div style={{
-          position: 'fixed',
-          top: rect.bottom + 4,
-          left: rect.left,
-          width: rect.width,
-          zIndex: 99999,
-          background: '#1a1f2e',
-          border: '1px solid rgba(255,255,255,0.14)',
-          borderRadius: 12,
-          overflow: 'hidden',
-          boxShadow: '0 16px 48px rgba(0,0,0,0.7)',
+          position: 'fixed', top: rect.bottom + 4, left: rect.left, width: rect.width,
+          zIndex: 99999, background: '#1a1f2e',
+          border: '1px solid rgba(255,255,255,0.14)', borderRadius: 12,
+          overflow: 'hidden', boxShadow: '0 16px 48px rgba(0,0,0,0.72)',
         }}>
-          {list.map(c => (
+          {(list.length ? list : COMPLAINTS).map(c => (
             <div
               key={c}
-              onMouseDown={e => { e.preventDefault(); onChange(c); setOpen(false) }}
+              onMouseDown={e => { e.preventDefault(); onChange(c); setOpen(false); setTyping(false) }}
               style={{
                 padding: '10px 14px', fontSize: 12.5, cursor: 'pointer',
-                color: value === c ? '#60a5fa' : 'rgba(255,255,255,0.72)',
+                color: value === c ? '#60a5fa' : 'rgba(255,255,255,0.75)',
                 background: value === c ? 'rgba(59,130,246,0.14)' : 'transparent',
                 borderBottom: '1px solid rgba(255,255,255,0.05)',
               }}
