@@ -329,16 +329,16 @@ def get_placeholder_80_text(data: dict) -> str:
 
 
 def get_placeholder_81_text(data: dict) -> str:
-    """Wits + N-A combination text for PPTX Placeholder 81."""
-    wits = _get_float(data, "Wits")
+    """N-A (PH4) + N-Pog (PH5) combination text for PPTX Placeholder 80."""
     na   = _get_float(data, "N-A")
-    if wits is None or na is None:
+    npog = _get_float(data, "N-Pog")
+    if na is None or npog is None:
         return ""
-    ref_wits = REFERENCE_RANGES["Wits"]
     ref_na   = REFERENCE_RANGES["N-A"]
+    ref_npog = REFERENCE_RANGES["N-Pog"]
     return _jaw_position_text(
-        wits, ref_wits["low"], ref_wits["high"],
         na,   ref_na["low"],   ref_na["high"],
+        npog, ref_npog["low"], ref_npog["high"],
     )
 
 
