@@ -194,19 +194,9 @@ function NumberGroup({ items, answers, setAnswer }) {
 // ── Bolton question ────────────────────────────────────────────────────────────
 // ph126 = 6-tooth Maksilla value, ph127 = 12-tooth Maksilla value
 // ph128 = 6-tooth Mandibula value, ph129 = 12-tooth Mandibula value
-function BoltonSection({ title, jawKey, mPh, dPh, answers, setAnswer }) {
-  const jaw = answers[jawKey] || ''
-
-  const selectJaw = (j) => {
-    const next = jaw === j ? '' : j
-    setAnswer(jawKey, next)
-    // Clear the deselected jaw's value
-    if (next !== 'Maksilla') setAnswer(mPh, '')
-    if (next !== 'Mandibula') setAnswer(dPh, '')
-  }
-
-  const activePh = jaw === 'Maksilla' ? mPh : jaw === 'Mandibula' ? dPh : null
-  const activeVal = activePh ? (answers[activePh] || '') : ''
+function BoltonSection({ title, mPh, dPh, answers, setAnswer }) {
+  const mVal = answers[mPh] || ''
+  const dVal = answers[dPh] || ''
 
   return (
     <div style={{
@@ -216,29 +206,26 @@ function BoltonSection({ title, jawKey, mPh, dPh, answers, setAnswer }) {
       <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: C.accent }}>
         {title}
       </span>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <span style={{ fontSize: 10, color: C.label }}>Bolton nerede?</span>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => selectJaw('Maksilla')}  style={optBtn(jaw === 'Maksilla')}>Maksilla</button>
-          <button onClick={() => selectJaw('Mandibula')} style={optBtn(jaw === 'Mandibula')}>Mandibula</button>
-        </div>
-      </div>
-      {activePh && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 10, color: C.label, whiteSpace: 'nowrap' }}>{jaw} değeri:</span>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 160 }}>
+          <span style={{ fontSize: 11, color: C.label, whiteSpace: 'nowrap', minWidth: 70 }}>Maksilla:</span>
           <input type="text"
-            value={activeVal}
-            onChange={e => setAnswer(activePh, e.target.value)}
-            placeholder="değer girin…"
-            style={{ ...inputStyle, maxWidth: 180 }}
+            value={mVal}
+            onChange={e => setAnswer(mPh, e.target.value)}
+            placeholder="değer…"
+            style={{ ...inputStyle, maxWidth: 120 }}
           />
         </div>
-      )}
-      {activeVal && (
-        <p style={{ margin: 0, color: C.green, fontSize: 11, fontStyle: 'italic' }}>
-          → Bolton {title}: {jaw} — {activeVal}
-        </p>
-      )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 160 }}>
+          <span style={{ fontSize: 11, color: C.label, whiteSpace: 'nowrap', minWidth: 70 }}>Mandibula:</span>
+          <input type="text"
+            value={dVal}
+            onChange={e => setAnswer(dPh, e.target.value)}
+            placeholder="değer…"
+            style={{ ...inputStyle, maxWidth: 120 }}
+          />
+        </div>
+      </div>
     </div>
   )
 }
@@ -252,8 +239,8 @@ function BoltonQuestion({ answers, setAnswer }) {
         </span>
         <span style={{ fontSize: 10, color: C.muted }}>(isteğe bağlı)</span>
       </div>
-      <BoltonSection title="6 Diş"  jawKey="_bjaw6"  mPh="ph126" dPh="ph128" answers={answers} setAnswer={setAnswer} />
-      <BoltonSection title="12 Diş" jawKey="_bjaw12" mPh="ph127" dPh="ph129" answers={answers} setAnswer={setAnswer} />
+      <BoltonSection title="6 Diş"  mPh="ph126" dPh="ph128" answers={answers} setAnswer={setAnswer} />
+      <BoltonSection title="12 Diş" mPh="ph127" dPh="ph129" answers={answers} setAnswer={setAnswer} />
     </div>
   )
 }
