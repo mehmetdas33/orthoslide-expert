@@ -50,8 +50,8 @@ IMAGE_SLOT_MAP = {
     "cover":             [{"slide": 0, "placeholder_idx": 2}],
 
     # Ekstraoral
-    "frontal":           [{"slide": 2,  "placeholder_idx": 2},   # Slayt 3
-                          {"slide": 20, "placeholder_idx": 10}], # Kompozit sol üst
+    "frontal":           [{"slide": 2,  "placeholder_idx": 2}],   # Slayt 3 (with midline)
+    "frontal_plain":     [{"slide": 20, "placeholder_idx": 10}], # Kompozit sol üst (no midline)
     "frontal_smile":       [{"slide": 3,  "placeholder_idx": 2}],  # Slayt 4 (with midline)
     "frontal_smile_plain": [{"slide": 20, "placeholder_idx": 12}], # Kompozit sag üst (no midline)
     "profile":           [{"slide": 4,  "placeholder_idx": 2},   # Slayt 5 sol

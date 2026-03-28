@@ -33,7 +33,7 @@ function drawMidline(ctx, W, H, pts, scale) {
   ctx.stroke()
 }
 
-export default function PupilLineModal({ file, onConfirm, onCancel }) {
+export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly = false }) {
   const imgRef       = useRef(null)
   const canvasRef    = useRef(null)
   const magCanvasRef = useRef(null)
@@ -71,52 +71,72 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
     const ctx = canvas.getContext('2d')
     ctx.clearRect(0, 0, dispW, dispH)
 
-    if (points.length >= 2) {
-      const [p1, p2] = points
-      // Dashed pupil reference line
-      ctx.save()
-      ctx.setLineDash([5, 4])
-      ctx.beginPath()
-      ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y)
-      ctx.strokeStyle = 'rgba(59,130,246,0.45)'
-      ctx.lineWidth = 1.5
-      ctx.stroke()
-      ctx.restore()
-
-      if (points.length === 3) {
-        const p3  = points[2]
-        const foot = cupidFoot(p1, p2, p3)
-        // Yellow dashed helper: Cupid's bow → foot
-        ctx.save()
-        ctx.setLineDash([4, 3])
+    if (midlineOnly) {
+      if (points.length === 1) {
+        // Vertical midline at clicked x
         ctx.beginPath()
-        ctx.moveTo(p3.x, p3.y); ctx.lineTo(foot.x, foot.y)
-        ctx.strokeStyle = 'rgba(251,191,36,0.75)'
-        ctx.lineWidth = 1
+        ctx.moveTo(points[0].x, 0)
+        ctx.lineTo(points[0].x, dispH)
+        ctx.strokeStyle = '#3B82F6'
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+        // Small dot marker
+        ctx.beginPath()
+        ctx.arc(points[0].x, points[0].y, 6, 0, Math.PI * 2)
+        ctx.fillStyle = '#3B82F6'
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+        ctx.lineWidth = 2
+        ctx.stroke()
+      }
+    } else {
+      if (points.length >= 2) {
+        const [p1, p2] = points
+        // Dashed pupil reference line
+        ctx.save()
+        ctx.setLineDash([5, 4])
+        ctx.beginPath()
+        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y)
+        ctx.strokeStyle = 'rgba(59,130,246,0.45)'
+        ctx.lineWidth = 1.5
         ctx.stroke()
         ctx.restore()
+
+        if (points.length === 3) {
+          const p3  = points[2]
+          const foot = cupidFoot(p1, p2, p3)
+          // Yellow dashed helper: Cupid's bow → foot
+          ctx.save()
+          ctx.setLineDash([4, 3])
+          ctx.beginPath()
+          ctx.moveTo(p3.x, p3.y); ctx.lineTo(foot.x, foot.y)
+          ctx.strokeStyle = 'rgba(251,191,36,0.75)'
+          ctx.lineWidth = 1
+          ctx.stroke()
+          ctx.restore()
+        }
+
+        drawMidline(ctx, dispW, dispH, points, 1)
       }
 
-      drawMidline(ctx, dispW, dispH, points, 1)
+      // Point markers
+      const colors = ['#3B82F6', '#3B82F6', '#F59E0B']
+      points.forEach((p, i) => {
+        ctx.beginPath()
+        ctx.arc(p.x, p.y, 7, 0, Math.PI * 2)
+        ctx.fillStyle = colors[i] || '#3B82F6'
+        ctx.fill()
+        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
+        ctx.lineWidth = 2
+        ctx.stroke()
+        ctx.fillStyle = 'white'
+        ctx.font = 'bold 11px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(String(i + 1), p.x, p.y)
+      })
     }
-
-    // Point markers
-    const colors = ['#3B82F6', '#3B82F6', '#F59E0B']
-    points.forEach((p, i) => {
-      ctx.beginPath()
-      ctx.arc(p.x, p.y, 7, 0, Math.PI * 2)
-      ctx.fillStyle = colors[i] || '#3B82F6'
-      ctx.fill()
-      ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-      ctx.lineWidth = 2
-      ctx.stroke()
-      ctx.fillStyle = 'white'
-      ctx.font = 'bold 11px sans-serif'
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.fillText(String(i + 1), p.x, p.y)
-    })
-  }, [points, dispW, dispH])
+  }, [points, dispW, dispH, midlineOnly])
 
   // Magnifier
   useEffect(() => {
@@ -152,23 +172,35 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
   }, [mousePos, dispW, dispH])
 
   const handleCanvasClick = useCallback((e) => {
-    if (points.length >= 3) return
+    const maxPts = midlineOnly ? 1 : 3
+    if (points.length >= maxPts) {
+      if (midlineOnly) {
+        // Allow repositioning by clicking again
+        const canvas = canvasRef.current
+        const rect   = canvas.getBoundingClientRect()
+        const x = (e.clientX - rect.left) * (canvas.width  / rect.width)
+        const y = (e.clientY - rect.top)  * (canvas.height / rect.height)
+        setPoints([{ x, y }])
+      }
+      return
+    }
     const canvas = canvasRef.current
     const rect   = canvas.getBoundingClientRect()
     const x = (e.clientX - rect.left) * (canvas.width  / rect.width)
     const y = (e.clientY - rect.top)  * (canvas.height / rect.height)
     setPoints(prev => [...prev, { x, y }])
-  }, [points.length])
+  }, [points.length, midlineOnly])
 
   const handleMouseMove = useCallback((e) => {
-    if (points.length >= 3) { setMousePos(null); return }
+    const maxPts = midlineOnly ? 1 : 3
+    if (points.length >= maxPts && !midlineOnly) { setMousePos(null); return }
     const canvas = canvasRef.current
     if (!canvas) return
     const rect = canvas.getBoundingClientRect()
     const cx = (e.clientX - rect.left) * (canvas.width  / rect.width)
     const cy = (e.clientY - rect.top)  * (canvas.height / rect.height)
     setMousePos({ cx, cy, clientX: e.clientX, clientY: e.clientY })
-  }, [points.length])
+  }, [points.length, midlineOnly])
 
   const handleMouseLeave = useCallback(() => setMousePos(null), [])
 
@@ -200,32 +232,48 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
     ctx.drawImage(img, 0, 0, natW, natH)
 
     let midlineFraction = null
-    if (points.length >= 2) {
-      const scaled = points.map(p => ({ x: p.x * sX, y: p.y * sY }))
-      drawMidline(ctx, natW, natH, scaled, (sX + sY) / 2)
-      if (points.length === 3) {
-        const foot = cupidFoot(points[0], points[1], points[2])
-        midlineFraction = foot.x / dispW
-      } else {
-        midlineFraction = (points[0].x + points[1].x) / 2 / dispW
+
+    if (midlineOnly) {
+      if (points.length === 1) {
+        const nx = points[0].x * sX
+        ctx.beginPath()
+        ctx.moveTo(nx, 0)
+        ctx.lineTo(nx, natH)
+        ctx.strokeStyle = '#3B82F6'
+        ctx.lineWidth = 0.75 * (sX + sY) / 2
+        ctx.stroke()
+        midlineFraction = points[0].x / dispW
+      }
+    } else {
+      if (points.length >= 2) {
+        const scaled = points.map(p => ({ x: p.x * sX, y: p.y * sY }))
+        drawMidline(ctx, natW, natH, scaled, (sX + sY) / 2)
+        if (points.length === 3) {
+          const foot = cupidFoot(points[0], points[1], points[2])
+          midlineFraction = foot.x / dispW
+        } else {
+          midlineFraction = (points[0].x + points[1].x) / 2 / dispW
+        }
       }
     }
 
     fc.toBlob(blob => {
       if (!blob) { setSaving(false); return }
-      const ext  = points.length >= 2 ? '_midline.jpg' : '.jpg'
+      const hasMidline = midlineOnly ? points.length === 1 : points.length >= 2
+      const ext  = hasMidline ? '_midline.jpg' : '.jpg'
       const name = file.name.replace(/\.[^.]+$/, '') + ext
       onConfirm(new File([blob], name, { type: 'image/jpeg' }), ph109, file, midlineFraction)
     }, 'image/jpeg', 0.95)
-  }, [points, file, dispW, dispH, ph109, onConfirm, saving])
+  }, [points, file, dispW, dispH, ph109, onConfirm, saving, midlineOnly])
 
   // Derived — after all useCallback hooks
   const loaded = dispW > 0 && dispH > 0
-  const hint =
-    points.length === 0 ? '1. Sol göz bebeğine tıklayın' :
-    points.length === 1 ? '2. Sağ göz bebeğine tıklayın' :
-    points.length === 2 ? "3. Cupid's bow noktasına tıklayın" :
-                          "✓ Orta hat hazır — Cupid's bow'dan dik"
+  const hint = midlineOnly
+    ? (points.length === 0 ? 'Orta hattı işaretlemek için fotoğrafa tıklayın' : '✓ Orta hat işaretlendi — yeniden konumlandırmak için tekrar tıklayın')
+    : (points.length === 0 ? '1. Sol göz bebeğine tıklayın' :
+       points.length === 1 ? '2. Sağ göz bebeğine tıklayın' :
+       points.length === 2 ? "3. Cupid's bow noktasına tıklayın" :
+                             "✓ Orta hat hazır — Cupid's bow'dan dik")
 
   const magLeft = mousePos ? mousePos.clientX + 20 : 0
   const magTop  = mousePos ? mousePos.clientY - MAG_SIZE - 10 : 0
@@ -241,7 +289,7 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
         {/* Header */}
         <div style={{ textAlign: 'center' }}>
           <p style={{ color: 'white', fontWeight: 700, fontSize: 14, margin: 0 }}>
-            Cephe Gülen — Orta Hat & Gülüş Analizi
+            {midlineOnly ? 'Cephe Gülmeyen — Orta Hat' : 'Cephe Gülen — Orta Hat & Gülüş Analizi'}
           </p>
           <p style={{
             color: points.length === 3 ? '#4ADE80' : points.length === 2 ? '#F59E0B' : '#60A5FA',
@@ -276,8 +324,8 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
           )}
         </div>
 
-        {/* Gülüş Hattı */}
-        <div style={{
+        {/* Gülüş Hattı — only for full pupil-line mode */}
+        {!midlineOnly && <div style={{
           background: '#111827', border: '1px solid rgba(255,255,255,0.08)',
           borderRadius: 12, padding: '14px 20px',
           display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
@@ -305,7 +353,7 @@ export default function PupilLineModal({ file, onConfirm, onCancel }) {
               İsteğe bağlı — seçmeden de kaydedebilirsiniz
             </p>
           )}
-        </div>
+        </div>}
 
         {/* Buttons */}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>

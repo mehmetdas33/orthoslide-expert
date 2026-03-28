@@ -131,7 +131,9 @@ function App() {
   }, [])
 
   const handleImageDrop = useCallback((slotKey, file) => {
-    if (slotKey === 'frontal_smile') {
+    if (slotKey === 'frontal') {
+      setPendingAnnotation({ type: 'frontal_midline', file })
+    } else if (slotKey === 'frontal_smile') {
       setPendingAnnotation({ type: 'pupil', file })
     } else if (slotKey === 'cephalometric') {
       setPendingAnnotation({ type: 'crop', file })
@@ -161,6 +163,15 @@ function App() {
 
   const handleImageRotate = useCallback((slotKey, rotatedFile) => {
     setImages(prev => ({ ...prev, [slotKey]: rotatedFile }))
+  }, [])
+
+  const handleFrontalMidlineConfirm = useCallback((annotatedFile, _ph109, originalFile) => {
+    setImages(prev => ({
+      ...prev,
+      frontal: annotatedFile,        // with midline → slide 3
+      frontal_plain: originalFile,   // original → composite (no midline)
+    }))
+    setPendingAnnotation(null)
   }, [])
 
   const handlePupilConfirm = useCallback((annotatedFile, ph109, originalFile, midlineX) => {
@@ -273,6 +284,9 @@ function App() {
 
   return (
     <div className="min-h-screen p-4 md:p-6">
+      {pendingAnnotation?.type === 'frontal_midline' && (
+        <PupilLineModal file={pendingAnnotation.file} midlineOnly onConfirm={handleFrontalMidlineConfirm} onCancel={handleAnnotationCancel} />
+      )}
       {pendingAnnotation?.type === 'pupil' && (
         <PupilLineModal file={pendingAnnotation.file} onConfirm={handlePupilConfirm} onCancel={handleAnnotationCancel} />
       )}
