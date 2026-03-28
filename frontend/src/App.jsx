@@ -310,7 +310,7 @@ function App() {
             pendingAnnotation.slotKey === 'lower_occlusal'    ? images.upper_occlusal :
             null
           }
-          refMidlineX={pendingAnnotation.slotKey === 'intraoral_frontal' ? frontalMidlineX : null}
+          refMidlineX={null}
           referenceLabel={
             pendingAnnotation.slotKey === 'upper_occlusal' ? 'Alt Oklüzal' :
             pendingAnnotation.slotKey === 'lower_occlusal' ? 'Üst Oklüzal' :
