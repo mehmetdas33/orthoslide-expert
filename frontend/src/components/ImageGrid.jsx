@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, memo } from 'react'
 
 // ── Slot definitions  (key must match IMAGE_SLOT_MAP in pptx_engine.py) ──────
 const IMAGE_SLOTS = [
@@ -32,6 +32,7 @@ const GROUP_STYLE = {
   'Oklüzal':    'bg-amber-500/20 text-amber-300',
   'Radyografi': 'bg-emerald-500/20 text-emerald-300',
 }
+
 const GROUP_BORDER = {
   'Kapak':      'border-rose-500/30',
   'Ekstraoral': 'border-violet-500/30',
@@ -416,21 +417,30 @@ const SLOT_GHOST = {
 
 // ── Draggable bulk thumbnail ─────────────────────────────────────────────────
 function BulkThumb({ item, onRemove }) {
+  const isAssigned = !!item.assignedTo
   const handleDragStart = (e) => {
+    if (isAssigned) { e.preventDefault(); return }
     e.dataTransfer.setData('text/plain', 'bulk:' + item.id)
     e.dataTransfer.effectAllowed = 'copy'
   }
   return (
     <div
-      draggable
+      draggable={!isAssigned}
       onDragStart={handleDragStart}
-      className="relative group cursor-grab active:cursor-grabbing flex-shrink-0"
-      style={{ width: 130 }}
+      className="relative group flex-shrink-0"
+      style={{ width: 130, cursor: isAssigned ? 'default' : 'grab', opacity: isAssigned ? 0.55 : 1 }}
     >
-      <img src={item.url} alt={item.file.name} className="w-full h-28 object-cover rounded-xl border border-white/10 shadow-md group-hover:border-accent-blue/40 transition-all" />
-      <div className="absolute inset-0 rounded-xl bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-        <span className="text-[9px] text-white font-semibold bg-black/50 px-1.5 py-0.5 rounded">Sürükle</span>
-      </div>
+      <img src={item.url} alt={item.file.name} className="w-full h-28 object-cover rounded-xl border shadow-md transition-all" style={{ borderColor: isAssigned ? 'rgba(34,197,94,0.5)' : 'rgba(255,255,255,0.1)' }} />
+      {isAssigned ? (
+        <div className="absolute inset-0 rounded-xl flex flex-col items-center justify-center bg-black/30">
+          <span className="text-emerald-400 text-base">✓</span>
+          <span className="text-[8px] text-emerald-300 font-semibold mt-0.5 px-1 text-center leading-tight">{item.assignedTo}</span>
+        </div>
+      ) : (
+        <div className="absolute inset-0 rounded-xl bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+          <span className="text-[9px] text-white font-semibold bg-black/50 px-1.5 py-0.5 rounded">Sürükle</span>
+        </div>
+      )}
       <button
         onClick={() => onRemove(item.id)}
         className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-[9px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
@@ -450,8 +460,9 @@ function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
 
   const onDrop = async (e) => {
     stop(e); setDragging(false)
-    const items = e.dataTransfer?.items
-    if (items?.length) {
+    const dtItems = Array.from(e.dataTransfer?.items || [])
+    const dtFiles = Array.from(e.dataTransfer?.files || [])
+    if (dtItems.length) {
       const files = []
       const readEntry = (entry) => new Promise((resolve) => {
         if (entry.isFile) {
@@ -468,14 +479,14 @@ function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
           resolve()
         }
       })
-      await Promise.all(Array.from(items).map(item => {
+      await Promise.all(dtItems.map(item => {
         const entry = item.webkitGetAsEntry?.()
         return entry ? readEntry(entry) : Promise.resolve()
       }))
       const imageFiles = files.filter(f => f.type.startsWith('image/'))
       if (imageFiles.length) { onFilesAdded(imageFiles); return }
     }
-    if (e.dataTransfer?.files?.length) onFilesAdded(e.dataTransfer.files)
+    if (dtFiles.length) onFilesAdded(dtFiles)
   }
 
   const onChange = (e) => {
@@ -483,7 +494,7 @@ function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
   }
 
   return (
-    <div className="glass-card p-4 mb-4" style={{ position: 'sticky', top: 4, zIndex: 20 }}>
+    <div className="glass-card p-4 mb-4">
       {/* Header */}
       <div className="flex items-center gap-2 mb-3">
         <svg className="w-3.5 h-3.5 text-accent-blue flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -743,7 +754,7 @@ function Lightbox({ item, onClose }) {
 }
 
 // ── Main component ───────────────────────────────────────────────────────────
-export default function ImageGrid({ images, onImageDrop, onImageRemove, onImageRotate, onReset }) {
+const ImageGrid = memo(function ImageGrid({ images, onImageDrop, onImageRemove, onImageRotate, onReset }) {
   const [bulkFiles, setBulkFiles] = useState([])
   const [lightbox, setLightbox] = useState(null)
   const nextId = useRef(0)
@@ -763,19 +774,31 @@ export default function ImageGrid({ images, onImageDrop, onImageRemove, onImageR
   const removeBulkFile = useCallback((id) => {
     setBulkFiles(prev => {
       const item = prev.find(x => x.id === id)
-      if (item) URL.revokeObjectURL(item.url)
+      if (item) {
+        URL.revokeObjectURL(item.url)
+        if (item.assignedTo) {
+          delete bulkSlotMap.current[item.assignedTo]
+          onImageRemove(item.assignedTo)
+        }
+      }
       return prev.filter(x => x.id !== id)
     })
-  }, [])
+  }, [onImageRemove])
 
   const handleBulkDrop = useCallback((slotKey, bulkId) => {
     const item = bulkFiles.find(x => x.id === bulkId)
     if (item) {
+      // Unmark previous bulk item for this slot if any
+      const prev = bulkSlotMap.current[slotKey]
+      if (prev && prev.id !== bulkId) {
+        setBulkFiles(p => p.map(x => x.id === prev.id ? { ...x, assignedTo: null } : x))
+      }
       bulkSlotMap.current[slotKey] = item
       onImageDrop(slotKey, item.file)
-      removeBulkFile(bulkId)
+      // Mark as assigned (keep visible with indicator) instead of removing
+      setBulkFiles(p => p.map(x => x.id === bulkId ? { ...x, assignedTo: slotKey } : x))
     }
-  }, [bulkFiles, onImageDrop, removeBulkFile])
+  }, [bulkFiles, onImageDrop])
 
   const handleSlotDrop = useCallback((slotKey, file) => {
     // Direct drop clears any bulk tracking for this slot
@@ -787,8 +810,7 @@ export default function ImageGrid({ images, onImageDrop, onImageRemove, onImageR
     const bulkItem = bulkSlotMap.current[slotKey]
     if (bulkItem) {
       delete bulkSlotMap.current[slotKey]
-      const newUrl = URL.createObjectURL(bulkItem.file)
-      setBulkFiles(prev => [...prev, { ...bulkItem, url: newUrl }])
+      setBulkFiles(prev => prev.map(x => x.id === bulkItem.id ? { ...x, assignedTo: null } : x))
     }
     onImageRemove(slotKey)
   }, [onImageRemove])
@@ -855,4 +877,5 @@ export default function ImageGrid({ images, onImageDrop, onImageRemove, onImageR
       </div>
     </>
   )
-}
+});
+export default ImageGrid;

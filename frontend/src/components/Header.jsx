@@ -193,9 +193,10 @@ export default function Header({ patientInfo, onPatientInfoChange, onGenerate, i
           <input
             type="text"
             value={patientInfo.doctor_name || ''}
-            onChange={(e) => {
+            onChange={(e) => onPatientInfoChange({ ...patientInfo, doctor_name: e.target.value })}
+            onBlur={(e) => {
               const v = e.target.value.replace(/\b\w/g, c => c.toUpperCase())
-              onPatientInfoChange({ ...patientInfo, doctor_name: v })
+              if (v !== e.target.value) onPatientInfoChange({ ...patientInfo, doctor_name: v })
             }}
             className={field.input}
             style={{ width: 164 }}
