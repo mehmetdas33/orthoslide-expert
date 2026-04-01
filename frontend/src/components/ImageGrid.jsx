@@ -878,7 +878,8 @@ const ImageGrid = memo(function ImageGrid({ images, onImageDrop, onImageRemove, 
           onFileRemove={removeBulkFile}
         />
 
-        {/* 5-column grid */}
+        {/* 5-column grid — scrollable so bulk panel stays always visible */}
+        <div style={{ overflowY: 'auto', maxHeight: '58vh', paddingRight: 4, marginRight: -4 }}>
         <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(5, minmax(0, 1fr))' }}>
           {IMAGE_SLOTS.map(slot => (
             <SlotZone
@@ -892,6 +893,7 @@ const ImageGrid = memo(function ImageGrid({ images, onImageDrop, onImageRemove, 
               onRotate={onImageRotate}
             />
           ))}
+        </div>
         </div>
 
         {/* Group legend */}
