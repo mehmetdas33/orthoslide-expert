@@ -460,33 +460,59 @@ function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
 
   const onDrop = async (e) => {
     stop(e); setDragging(false)
-    const dtItems = Array.from(e.dataTransfer?.items || [])
+    // Capture everything synchronously — DataTransfer is only valid during sync execution
     const dtFiles = Array.from(e.dataTransfer?.files || [])
-    if (dtItems.length) {
+    const dtItems = Array.from(e.dataTransfer?.items || [])
+    const entries = dtItems.map(i => i.webkitGetAsEntry?.()).filter(Boolean)
+    const uriList = (e.dataTransfer?.getData?.('text/uri-list') || '').trim()
+
+    // 1. OS file drag → files populated directly
+    const imgFiles = dtFiles.filter(f => f.type.startsWith('image/') || /.(jpe?g|png|gif|webp|bmp|heic|avif)$/i.test(f.name))
+    if (imgFiles.length) { onFilesAdded(imgFiles); return }
+
+    // 2. kind==='file' items (some browsers populate items but not files)
+    const kindFiles = dtItems
+      .filter(i => i.kind === 'file')
+      .map(i => i.getAsFile())
+      .filter(f => f && (f.type.startsWith('image/') || /.(jpe?g|png|gif|webp|bmp|heic|avif)$/i.test(f.name)))
+    if (kindFiles.length) { onFilesAdded(kindFiles); return }
+
+    // 3. Folder via webkitGetAsEntry (async OK — entries captured synchronously above)
+    if (entries.length) {
       const files = []
       const readEntry = (entry) => new Promise((resolve) => {
         if (entry.isFile) {
           entry.getFile(f => { files.push(f); resolve() }, resolve)
         } else if (entry.isDirectory) {
           const reader = entry.createReader()
-          const readBatch = () => reader.readEntries(async (entries) => {
-            if (!entries.length) { resolve(); return }
-            await Promise.all(entries.map(readEntry))
-            readBatch()
+          const readBatch = () => reader.readEntries(async (batch) => {
+            if (!batch.length) { resolve(); return }
+            await Promise.all(batch.map(readEntry)); readBatch()
           }, resolve)
           readBatch()
-        } else {
-          resolve()
-        }
+        } else { resolve() }
       })
-      await Promise.all(dtItems.map(item => {
-        const entry = item.webkitGetAsEntry?.()
-        return entry ? readEntry(entry) : Promise.resolve()
-      }))
-      const imageFiles = files.filter(f => f.type.startsWith('image/'))
-      if (imageFiles.length) { onFilesAdded(imageFiles); return }
+      await Promise.all(entries.map(readEntry))
+      const entryImgs = files.filter(f => f.type.startsWith('image/') || /.(jpe?g|png|gif|webp|bmp)$/i.test(f.name))
+      if (entryImgs.length) { onFilesAdded(entryImgs); return }
     }
-    if (dtFiles.length) onFilesAdded(dtFiles)
+
+    // 4. Browser img element drag → fetch blob URL
+    if (uriList) {
+      const urls = uriList.split(String.fromCharCode(10)).map(u => u.trim()).filter(u => u.startsWith('blob:'))
+      if (urls.length) {
+        try {
+          const fetched = await Promise.all(urls.map(async url => {
+            const res = await fetch(url)
+            const blob = await res.blob()
+            if (!blob.type.startsWith('image/')) return null
+            return new File([blob], 'image.jpg', { type: blob.type })
+          }))
+          const urlImgs = fetched.filter(Boolean)
+          if (urlImgs.length) { onFilesAdded(urlImgs) }
+        } catch (_) {}
+      }
+    }
   }
 
   const onChange = (e) => {
