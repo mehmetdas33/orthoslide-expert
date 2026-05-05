@@ -267,7 +267,7 @@ function App() {
     Object.entries(images).forEach(([key, file]) => formData.append(key, file))
     if (closingVideo) formData.append('closing_video', closingVideo)
     try {
-      const res  = await axios.post(`${API_BASE}/generate-pptx`, formData, { responseType: 'blob' })
+      const res  = await axios.post(`${API_BASE}/generate-pptx`, formData, { responseType: 'blob', timeout: 180000 })
       const url  = window.URL.createObjectURL(new Blob([res.data]))
       const link = document.createElement('a')
       link.href  = url
