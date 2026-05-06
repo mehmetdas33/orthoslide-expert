@@ -144,11 +144,10 @@ def insert_image_to_placeholder(slide, placeholder_idx, image_path, match_top=No
             display_left = left + (width  - display_w) // 2
             display_top  = top  + (height - display_h) // 2
 
-            # Resize image for quality (2000px max, content stays correct)
-            scale = min(2000 / img_w, 2000 / img_h)
+            scale = min(1200 / img_w, 1200 / img_h, 1.0)
             resized = img.resize((max(1, int(img_w * scale)), max(1, int(img_h * scale))), Image.LANCZOS)
             temp_path = image_path + f"_tmp_{uuid.uuid4().hex[:6]}.jpg"
-            resized.save(temp_path, "JPEG", quality=95)
+            resized.save(temp_path, "JPEG", quality=82)
 
             sp = placeholder._element
             sp.getparent().remove(sp)
@@ -171,8 +170,12 @@ def insert_image_to_placeholder(slide, placeholder_idx, image_path, match_top=No
                 top_crop = (img_h - new_h) // 2
                 img = img.crop((0, top_crop, img_w, top_crop + new_h))
 
+        max_dim = 1200
+        if img_w > max_dim or img_h > max_dim:
+            scale = min(max_dim / img_w, max_dim / img_h)
+            img = img.resize((max(1, int(img_w * scale)), max(1, int(img_h * scale))), Image.LANCZOS)
         temp_path = image_path + f"_tmp_{uuid.uuid4().hex[:6]}.jpg"
-        img.save(temp_path, "JPEG", quality=95)
+        img.save(temp_path, "JPEG", quality=82)
 
     sp = placeholder._element
     sp.getparent().remove(sp)
