@@ -7,8 +7,23 @@ import PhotoQuestionModal from './components/PhotoQuestionModal'
 import CropModal from './components/CropModal'
 import LineMarkModal from './components/LineMarkModal'
 import axios from 'axios'
+import imageCompression from 'browser-image-compression'
 
 const API_BASE = (import.meta.env.VITE_API_URL || '') + '/api'
+
+const compressImage = async (file) => {
+  if (!file || !file.type.startsWith('image/')) return file
+  try {
+    const compressed = await imageCompression(file, {
+      maxSizeMB: 1,
+      maxWidthOrHeight: 1920,
+      useWebWorker: true,
+    })
+    return new File([compressed], file.name, { type: compressed.type || 'image/jpeg' })
+  } catch {
+    return file
+  }
+}
 
 const SLOT_QUESTIONS = {
   profile: [
@@ -130,7 +145,9 @@ function App() {
     }
   }, [])
 
-  const handleImageDrop = useCallback((slotKey, file) => {
+  const handleImageDrop = useCallback(async (slotKey, file) => {
+    const file2 = await compressImage(file)
+    file = file2
     if (slotKey === 'frontal') {
       setPendingAnnotation({ type: 'frontal_midline', file })
     } else if (slotKey === 'frontal_smile') {
