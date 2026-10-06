@@ -19,8 +19,9 @@ const LINE_HIT   = 9       // çizgi yakalama mesafesi (px)
  *  - lineHit(p, pts) → bool: imleç çizginin üstünde mi (çizginin kendisinden tutup kaydırma)
  *  - dragLine(startPts, dx, dy) → yeni noktalar
  *  - magnifier: { ref, imgRef, size, zoom, color }
+ *  - handle: { hit(p, pts) → bool, start(p, pts) → { move(p), end() } } — ek tutamak (ör. açı döndürme)
  */
-export function usePointEditor({ canvasRef, dispW, dispH, maxPoints, replaceWhenFull = false, draw, lineHit, dragLine, magnifier }) {
+export function usePointEditor({ canvasRef, dispW, dispH, maxPoints, replaceWhenFull = false, draw, lineHit, dragLine, magnifier, handle }) {
   const [points, setPointsState] = useState([])
   const [dragging, setDragging]  = useState(false)
   const [hovering, setHovering]  = useState(false)
@@ -29,6 +30,9 @@ export function usePointEditor({ canvasRef, dispW, dispH, maxPoints, replaceWhen
   const activeRef  = useRef(-1)       // klavyeyle kaydırılacak nokta
   const pointerRef = useRef(null)     // son imleç konumu { x, y, clientX, clientY }
   const rafRef     = useRef(0)
+  // Geri çağrılar her render'da güncellenir — olay işleyicileri eski (bayat) sürümü görmesin
+  const cbRef = useRef({})
+  cbRef.current = { lineHit, dragLine, handle }
 
   const setPoints = useCallback((pts) => {
     pointsRef.current = pts
@@ -112,7 +116,9 @@ export function usePointEditor({ canvasRef, dispW, dispH, maxPoints, replaceWhen
     if (!c) return
     if (dragRef.current) { c.style.cursor = 'grabbing'; return }
     const pts = pointsRef.current
+    const { handle, lineHit } = cbRef.current
     if (hitIndex(p) >= 0) c.style.cursor = 'grab'
+    else if (handle && handle.hit(p, pts)) c.style.cursor = 'grab'
     else if (pts.length < maxPoints) c.style.cursor = 'crosshair'
     else if (lineHit && lineHit(p, pts, LINE_HIT)) c.style.cursor = 'move'
     else c.style.cursor = (pts.length < maxPoints || replaceWhenFull) ? 'crosshair' : 'default'
@@ -124,9 +130,12 @@ export function usePointEditor({ canvasRef, dispW, dispH, maxPoints, replaceWhen
     const p = toLocal(e)
     pointerRef.current = p
     const pts = pointsRef.current
+    const { handle, lineHit, dragLine } = cbRef.current
     const hit = hitIndex(p)
     if (hit >= 0) {
       dragRef.current = { type: 'point', idx: hit }
+    } else if (handle && handle.hit(p, pts)) {
+      dragRef.current = { type: 'handle', ctl: handle.start(p, pts) }
     } else if (pts.length < maxPoints) {
       // Nokta eksikken tıklama her zaman yeni nokta ekler (Cupid's bow genelde orta hattın üstündedir)
       pointsRef.current = [...pts, { x: p.x, y: p.y }]
@@ -146,7 +155,7 @@ export function usePointEditor({ canvasRef, dispW, dispH, maxPoints, replaceWhen
     updateCursor(p)
     schedule()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispW, dispH, maxPoints, replaceWhenFull, lineHit, dragLine, schedule])
+  }, [dispW, dispH, maxPoints, replaceWhenFull, schedule])
 
   const onPointerMove = useCallback((e) => {
     const p = toLocal(e)
@@ -155,15 +164,18 @@ export function usePointEditor({ canvasRef, dispW, dispH, maxPoints, replaceWhen
     if (d?.type === 'point') {
       pointsRef.current = pointsRef.current.map((q, i) => (i === d.idx ? { x: p.x, y: p.y } : q))
     } else if (d?.type === 'line') {
-      pointsRef.current = dragLine(d.startPts, p.x - d.start.x, p.y - d.start.y, dispW, dispH)
+      pointsRef.current = cbRef.current.dragLine(d.startPts, p.x - d.start.x, p.y - d.start.y, dispW, dispH)
+    } else if (d?.type === 'handle') {
+      d.ctl.move(p)
     }
     updateCursor(p)
     schedule()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dispW, dispH, dragLine, schedule])
+  }, [dispW, dispH, schedule])
 
   const endDrag = useCallback((e) => {
     if (!dragRef.current) return
+    if (dragRef.current.type === 'handle') dragRef.current.ctl.end?.()
     dragRef.current = null
     try { canvasRef.current?.releasePointerCapture(e.pointerId) } catch { /* yok say */ }
     setDragging(false)
@@ -196,7 +208,7 @@ export function usePointEditor({ canvasRef, dispW, dispH, maxPoints, replaceWhen
     tabIndex: 0,
   }
 
-  return { points, setPoints, dragging, showMagnifier: hovering || dragging, handlers }
+  return { points, setPoints, dragging, showMagnifier: hovering || dragging, handlers, redraw: schedule, pointsRef }
 }
 
 /** p noktasının, o'dan dir yönünde geçen sonsuz doğruya uzaklığı */

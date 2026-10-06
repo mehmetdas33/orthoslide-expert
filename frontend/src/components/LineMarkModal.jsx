@@ -82,9 +82,10 @@ export default function LineMarkModal({ file, onConfirm, onCancel, initialPoints
   })
 
   useEffect(() => {
-    const reader = new FileReader()
-    reader.onload = (e) => setImgSrc(e.target.result)
-    reader.readAsDataURL(file)
+    // Nesne URL'si: base64'e çevirmekten çok daha hızlı açılır
+    const url = URL.createObjectURL(file)
+    setImgSrc(url)
+    return () => URL.revokeObjectURL(url)
   }, [file])
 
   const handleLoad = (e) => {

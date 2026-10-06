@@ -266,6 +266,7 @@ export default function Header({ patientInfo, onPatientInfoChange, onGenerate, i
         <div className={`mx-5 mb-3 py-2 px-4 rounded-xl text-xs font-medium animate-slide-up ${
           statusMessage.includes('✓') ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
           statusMessage.includes('✗') ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+          statusMessage.includes('⚠') ? 'bg-amber-500/10 text-amber-300 border border-amber-500/25' :
           'bg-ortho-500/10 text-ortho-400 border border-ortho-500/20'
         }`}>
           {statusMessage}

@@ -311,21 +311,19 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
 
   // Load main image
   useEffect(() => {
-    let cancelled = false
-    const reader = new FileReader()
-    reader.onload = (e) => { if (!cancelled) setImgSrc(e.target.result) }
-    reader.readAsDataURL(file)
-    return () => { cancelled = true }
+    // Nesne URL'si: base64'e çevirmekten çok daha hızlı açılır
+    const url = URL.createObjectURL(file)
+    setImgSrc(url)
+    return () => URL.revokeObjectURL(url)
   }, [file])
 
   // Load reference image (frontal_smile for intraoral_frontal)
   useEffect(() => {
     if (!referenceImage) { setRefSrc(null); return }
-    let cancelled = false
-    const reader = new FileReader()
-    reader.onload = (e) => { if (!cancelled) setRefSrc(e.target.result) }
-    reader.readAsDataURL(referenceImage)
-    return () => { cancelled = true }
+    // Nesne URL'si: base64'e çevirmekten çok daha hızlı açılır
+    const url = URL.createObjectURL(referenceImage)
+    setRefSrc(url)
+    return () => URL.revokeObjectURL(url)
   }, [referenceImage])
 
   const handleLoad = (e) => {

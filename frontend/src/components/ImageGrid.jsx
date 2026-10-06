@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect, memo } from 'react'
+import { useRef, useState, useCallback, useEffect, useMemo, memo } from 'react'
 
 // ── Slot definitions  (key must match IMAGE_SLOT_MAP in pptx_engine.py) ──────
 const IMAGE_SLOTS = [
@@ -588,11 +588,14 @@ function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
 }
 
 // ── Individual slot drop zone ────────────────────────────────────────────────
-function SlotZone({ slot, imageFile, lines, canEditLine, onEditLine, onDrop, onRemove, onBulkDrop, onPreview, onRotate }) {
+const SlotZone = memo(function SlotZone({ slot, imageFile, lines, canEditLine, onEditLine, onDrop, onRemove, onBulkDrop, onPreview, onRotate }) {
   const [dragging, setDragging] = useState(false)
   const [natSize, setNatSize] = useState(null)
   const ref = useRef(null)
-  const preview = imageFile ? URL.createObjectURL(imageFile) : null
+  // Önizleme URL'si yalnızca dosya değişince oluşturulur (eskiden her render'da yeni URL →
+  // 16 fotoğraf her tuş vuruşunda yeniden çözülüyordu) ve eski URL serbest bırakılır
+  const preview = useMemo(() => (imageFile ? URL.createObjectURL(imageFile) : null), [imageFile])
+  useEffect(() => () => { if (preview) URL.revokeObjectURL(preview) }, [preview])
   const stop = (e) => { e.preventDefault(); e.stopPropagation() }
   const borderCls = GROUP_BORDER[slot.group] || 'border-white/10'
 
@@ -713,7 +716,7 @@ function SlotZone({ slot, imageFile, lines, canEditLine, onEditLine, onDrop, onR
       )}
     </div>
   )
-}
+})
 
 // ── Lightbox modal with scroll-to-zoom ──────────────────────────────────────
 function Lightbox({ item, onClose }) {

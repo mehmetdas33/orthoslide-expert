@@ -12,9 +12,10 @@ export default function CropModal({ file, onConfirm, onCancel }) {
   const [crop, setCrop]     = useState({ x1: 0, y1: 0, x2: 0, y2: 0 })
 
   useEffect(() => {
-    const reader = new FileReader()
-    reader.onload = (e) => setImgSrc(e.target.result)
-    reader.readAsDataURL(file)
+    // Nesne URL'si: base64'e çevirmekten çok daha hızlı açılır
+    const url = URL.createObjectURL(file)
+    setImgSrc(url)
+    return () => URL.revokeObjectURL(url)
   }, [file])
 
   const handleLoad = (e) => {

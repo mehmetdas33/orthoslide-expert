@@ -23,16 +23,38 @@ const MEAN_IPD_MM = 63
  *  - Cupid's bow (3, isteğe bağlı) → kontrol noktası; sapması ölçülür.
  *    anchor = 'cupid' seçilirse hat aynı yönde ama Cupid's bow'dan geçer.
  */
-function midlineGeometry(pts, anchor) {
+function midlineGeometry(pts, anchor, angleDeg = 0) {
   if (pts.length < 2) return null
   const [p1, p2] = pts
   const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }
   const o = anchor === 'cupid' && pts.length === 3 ? cupidFoot(p1, p2, pts[2]) : mid
-  return { o, mid, dir: { x: -(p2.y - p1.y), y: p2.x - p1.x } }
+  // Bipupiller hatta dik birim vektör, aşağı doğru
+  let bx = -(p2.y - p1.y), by = p2.x - p1.x
+  const bl = Math.hypot(bx, by) || 1
+  bx /= bl; by /= bl
+  if (by < 0) { bx = -bx; by = -by }
+  // Kullanıcının verdiği açı düzeltmesi (dikten sapma, saat yönü +)
+  const a = angleDeg * Math.PI / 180
+  const dir = { x: bx * Math.cos(a) - by * Math.sin(a), y: bx * Math.sin(a) + by * Math.cos(a) }
+  return { o, mid, dir, base: { x: bx, y: by } }
+}
+
+/** Döndürme tutamacının yeri: çizginin alt ucuna yakın */
+function rotateHandlePos(g, W, H) {
+  const ends = lineThroughRect(g.o, g.dir, W, H)
+  if (!ends) return null
+  const e = ends[0].y > ends[1].y ? ends[0] : ends[1]
+  return { x: g.o.x + (e.x - g.o.x) * 0.82, y: g.o.y + (e.y - g.o.y) * 0.82 }
+}
+
+const MAX_ANGLE = 30
+const smallBtn = {
+  padding: '4px 9px', borderRadius: 7, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+  background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.6)', border: '1px solid rgba(255,255,255,0.1)',
 }
 
 /** Analiz: bipupiller hattın eğimi ve Cupid's bow'un pupil orta hattından sapması. */
-function midlineAnalysis(pts) {
+function midlineAnalysis(pts, angleDeg = 0) {
   if (pts.length < 2) return null
   const [p1, p2] = pts[0].x <= pts[1].x ? [pts[0], pts[1]] : [pts[1], pts[0]]
   const ipdPx = Math.hypot(p2.x - p1.x, p2.y - p1.y) || 1
@@ -40,12 +62,11 @@ function midlineAnalysis(pts) {
   const tiltDeg = Math.atan2(p2.y - p1.y, p2.x - p1.x) * 180 / Math.PI
   let cupidMm = null
   if (pts.length === 3) {
-    const foot = cupidFoot(pts[0], pts[1], pts[2])
-    const mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 }
-    // bipupiller hat boyunca işaretli mesafe (görüntüde sağa +)
-    const ux = (p2.x - p1.x) / ipdPx, uy = (p2.y - p1.y) / ipdPx
-    const along = (foot.x - mid.x) * ux + (foot.y - mid.y) * uy
-    cupidMm = along / ipdPx * MEAN_IPD_MM
+    // Cupid's bow'un pupil orta hattına (açı düzeltmesi dahil) dik uzaklığı; görüntüde sağa +
+    const g = midlineGeometry(pts, 'pupil', angleDeg)
+    const n = { x: g.dir.y, y: -g.dir.x }   // aşağı yönün sağ normali = görüntüde sağ
+    const dist = (pts[2].x - g.o.x) * n.x + (pts[2].y - g.o.y) * n.y
+    cupidMm = dist / ipdPx * MEAN_IPD_MM
   }
   return { tiltDeg, cupidMm }
 }
@@ -53,9 +74,9 @@ function midlineAnalysis(pts) {
 const clampPt = (p, W, H) => ({ x: Math.max(0, Math.min(W, p.x)), y: Math.max(0, Math.min(H, p.y)) })
 
 // İşaret çizimi (ana kanvas ve büyüteç için ortak; s = çizgi/nokta ölçeği)
-function makeDraw(anchor) {
+function makeDraw(anchor, angleRef) {
   return (ctx, W, H, pts, active, s = 1) => {
-    const g = midlineGeometry(pts, anchor)
+    const g = midlineGeometry(pts, anchor, angleRef.current)
     if (pts.length >= 2) {
       const [p1, p2] = pts
       ctx.save()
@@ -73,7 +94,7 @@ function makeDraw(anchor) {
         ctx.strokeStyle = 'rgba(251,191,36,0.85)'; ctx.lineWidth = 1.5 * s; ctx.stroke()
         // Cupid's bow seçiliyse pupil orta hattını referans olarak kesikli göster
         if (anchor === 'cupid') {
-          const ref = lineThroughRect(g.mid, g.dir, W, H)
+          const ref = lineThroughRect(g.mid, g.dir, W, H)   // aynı açıyla, pupil ortasından
           if (ref) {
             ctx.beginPath(); ctx.moveTo(ref[0].x, ref[0].y); ctx.lineTo(ref[1].x, ref[1].y)
             ctx.strokeStyle = 'rgba(59,130,246,0.5)'; ctx.lineWidth = 1 * s; ctx.stroke()
@@ -87,6 +108,25 @@ function makeDraw(anchor) {
       if (ends) {
         ctx.beginPath(); ctx.moveTo(ends[0].x, ends[0].y); ctx.lineTo(ends[1].x, ends[1].y)
         ctx.strokeStyle = '#3B82F6'; ctx.lineWidth = 1.5 * s; ctx.stroke()
+      }
+      // Açı değiştirilmişse "tam dik" referansı ince kesikli göster
+      if (Math.abs(angleRef.current) >= 0.05) {
+        const perp = lineThroughRect(g.o, g.base, W, H)
+        if (perp) {
+          ctx.save(); ctx.setLineDash([2 * s, 4 * s])
+          ctx.beginPath(); ctx.moveTo(perp[0].x, perp[0].y); ctx.lineTo(perp[1].x, perp[1].y)
+          ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1 * s; ctx.stroke()
+          ctx.restore()
+        }
+      }
+      // Döndürme tutamacı
+      const h = rotateHandlePos(g, W, H)
+      if (h) {
+        ctx.beginPath(); ctx.arc(h.x, h.y, 8 * s, 0, Math.PI * 2)
+        ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill()
+        ctx.strokeStyle = '#3B82F6'; ctx.lineWidth = 2 * s; ctx.stroke()
+        ctx.beginPath(); ctx.arc(h.x, h.y, 4 * s, -Math.PI * 0.9, Math.PI * 0.4)
+        ctx.strokeStyle = '#2563EB'; ctx.lineWidth = 1.5 * s; ctx.stroke()
       }
     }
     const colors = ['#3B82F6', '#3B82F6', '#F59E0B']
@@ -104,7 +144,7 @@ function makeDraw(anchor) {
   }
 }
 
-export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly = false, initialPoints = null, initialPh109 = null, initialAnchor = 'pupil' }) {
+export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly = false, initialPoints = null, initialPh109 = null, initialAnchor = 'pupil', initialAngle = 0 }) {
   const imgRef       = useRef(null)
   const canvasRef    = useRef(null)
   const magCanvasRef = useRef(null)
@@ -118,12 +158,46 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
   // Orta hattın geçtiği referans: 'pupil' (pupillerin ortası, önerilen) | 'cupid'
   const [anchor, setAnchor]   = useState(initialAnchor === 'cupid' ? 'cupid' : 'pupil')
 
-  const draw = useMemo(() => makeDraw(anchor), [anchor])
+  // Orta hattın dikten açı sapması (°). Sürüklerken ref üzerinden canlı, bırakınca state'e yazılır
+  const [angle, setAngleState] = useState(Number(initialAngle) || 0)
+  const angleRef = useRef(Number(initialAngle) || 0)
+  const redrawRef = useRef(() => {})
+  const setAngle = useCallback((v) => {
+    const a = Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, Math.round(v * 10) / 10))
+    angleRef.current = a
+    setAngleState(a)
+    redrawRef.current()
+  }, [])
+
+  const draw = useMemo(() => makeDraw(anchor, angleRef), [anchor])
   // Çizginin kendisinden tutup kaydırma
   const lineHit = useCallback((p, pts, tol) => {
-    const g = midlineGeometry(pts, anchor)
+    const g = midlineGeometry(pts, anchor, angleRef.current)
     return !!g && distToLine(p, g.o, g.dir) <= tol
   }, [anchor])
+
+  // Döndürme tutamacı: tutup sürükleyince orta hat kendi noktası etrafında döner
+  const rotateHandle = useMemo(() => ({
+    hit: (p, pts) => {
+      const g = midlineGeometry(pts, anchor, angleRef.current)
+      const h = g && rotateHandlePos(g, dispW, dispH)
+      return !!h && Math.hypot(p.x - h.x, p.y - h.y) <= 14
+    },
+    start: (p, pts) => {
+      const g0 = midlineGeometry(pts, anchor, 0)
+      const baseAng = Math.atan2(g0.base.y, g0.base.x)
+      return {
+        move: (q) => {
+          const v = { x: q.x - g0.o.x, y: q.y - g0.o.y }
+          if (Math.hypot(v.x, v.y) < 10) return
+          let d = (Math.atan2(v.y, v.x) - baseAng) * 180 / Math.PI
+          d = ((d + 540) % 360) - 180
+          angleRef.current = Math.max(-MAX_ANGLE, Math.min(MAX_ANGLE, Math.round(d * 10) / 10))
+        },
+        end: () => setAngleState(angleRef.current),
+      }
+    },
+  }), [anchor, dispW, dispH])
   const dragLine = useCallback((start, dx, dy, W, H) => {
     // Cupid's bow referansında Cupid's bow'u, pupil referansında iki pupili birlikte kaydır
     if (anchor === 'cupid' && start.length === 3) return [start[0], start[1], clampPt({ x: start[2].x + dx, y: start[2].y + dy }, W, H)]
@@ -131,18 +205,19 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
   }, [anchor])
   const magnifier = useMemo(() => ({ ref: magCanvasRef, imgRef, size: MAG_SIZE, zoom: MAG_ZOOM, color: 'rgba(59,130,246,0.9)' }), [])
 
-  const { points, setPoints, showMagnifier, handlers } = usePointEditor({
+  const { points, setPoints, showMagnifier, handlers, redraw } = usePointEditor({
     canvasRef, dispW, dispH,
     maxPoints: 3,
-    draw, lineHit, dragLine, magnifier,
+    draw, lineHit, dragLine, magnifier, handle: rotateHandle,
   })
+  redrawRef.current = redraw
+  useEffect(() => { redraw() }, [anchor, redraw])
 
   useEffect(() => {
-    let cancelled = false
-    const reader = new FileReader()
-    reader.onload = (e) => { if (!cancelled) setImgSrc(e.target.result) }
-    reader.readAsDataURL(file)
-    return () => { cancelled = true }
+    // Nesne URL'si: base64'e çevirmekten çok daha hızlı açılır
+    const url = URL.createObjectURL(file)
+    setImgSrc(url)
+    return () => URL.revokeObjectURL(url)
   }, [file])
 
   const handleLoad = (e) => {
@@ -182,7 +257,7 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
     if (!img || !dispW || saving) return
     setSaving(true)
     // Çizgi fotoğrafa gömülmez: temiz görüntü + normalize çizgi → slaytta düzenlenebilir çizgi
-    const g = midlineGeometry(points, anchor)
+    const g = midlineGeometry(points, anchor, angleRef.current)
     const line = g ? toNormLine(lineThroughRect(g.o, g.dir, dispW, dispH), dispW, dispH, MIDLINE_STYLE) : null
     const base = file.name.replace(/\.[^.]+$/, '')
     const cleanFile = rotated ? await encodeImage(img, base + '.jpg') : file
@@ -193,13 +268,14 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
       line,
       points: normPoints(points, dispW, dispH),
       anchor,
+      angle: angleRef.current,
       midlineX: g ? g.o.x / dispW : null,
     })
-  }, [points, file, dispW, dispH, ph109, onConfirm, saving, anchor, rotated])
+  }, [points, file, dispW, dispH, ph109, onConfirm, saving, anchor, angle, rotated])
 
   // Derived — after all useCallback hooks
   const loaded = dispW > 0 && dispH > 0
-  const analysis = midlineAnalysis(points)
+  const analysis = midlineAnalysis(points, angle)
   const hint = points.length === 0 ? '1. Hastanın sağ göz bebeğine tıklayın (görüntüde solda)'
              : points.length === 1 ? '2. Diğer göz bebeğine tıklayın'
              : points.length === 2 ? "✓ Orta hat hazır (pupillerin ortasından, bipupiller hatta dik) · İsteğe bağlı 3. nokta: Cupid's bow — sapmayı ölçer"
@@ -250,21 +326,24 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
         </div>
 
         {/* Orta hat analizi: baş eğimi + Cupid's bow sapması, referans seçimi */}
-        {analysis && (
+        {loaded && (
           <div style={{
             background: '#111827', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12,
             padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center',
             width: loaded ? Math.max(dispW, 320) : 320, boxSizing: 'border-box',
           }}>
-            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'center', fontSize: 12 }}>
-              <span style={{ color: 'rgba(255,255,255,0.55)' }}>
+            <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', justifyContent: 'center', fontSize: 12, minHeight: 18 }}>
+              {!analysis && (
+                <span style={{ color: 'rgba(255,255,255,0.35)' }}>İki göz bebeğini işaretleyince baş eğimi ve orta hat burada görünür</span>
+              )}
+              {analysis && <span style={{ color: 'rgba(255,255,255,0.55)' }}>
                 Bipupiller hat eğimi:{' '}
                 <b style={{ color: Math.abs(analysis.tiltDeg) > 2 ? '#F59E0B' : '#4ADE80' }}>
                   {Math.abs(analysis.tiltDeg).toFixed(1)}°
                   {Math.abs(analysis.tiltDeg) >= 0.1 ? (analysis.tiltDeg > 0 ? ' (görüntüde sağ taraf aşağıda)' : ' (görüntüde sol taraf aşağıda)') : ''}
                 </b>
-              </span>
-              {analysis.cupidMm !== null && (
+              </span>}
+              {analysis && analysis.cupidMm !== null && (
                 <span style={{ color: 'rgba(255,255,255,0.55)' }}>
                   Cupid's bow sapması:{' '}
                   <b style={{ color: Math.abs(analysis.cupidMm) > 2 ? '#F59E0B' : '#4ADE80' }}>
@@ -274,8 +353,9 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
                 </span>
               )}
             </div>
-            {points.length === 3 && (
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+            {(
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center',
+                opacity: points.length === 3 ? 1 : 0.35, pointerEvents: points.length === 3 ? 'auto' : 'none' }}>
                 <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Orta hat geçsin:</span>
                 {[['pupil', 'Pupillerin ortasından (önerilen)'], ['cupid', "Cupid's bow'dan"]].map(([k, label]) => (
                   <button key={k} onClick={() => setAnchor(k)} style={{
@@ -286,8 +366,21 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
                 ))}
               </div>
             )}
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'center' }}>
+              <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Orta hat açısı</span>
+              <input type="range" min={-MAX_ANGLE} max={MAX_ANGLE} step={0.1} value={angle} disabled={!analysis}
+                onChange={(e) => setAngle(parseFloat(e.target.value))}
+                style={{ width: 180, accentColor: '#3B82F6' }} />
+              <span style={{ color: Math.abs(angle) >= 0.05 ? '#F59E0B' : '#4ADE80', fontSize: 12, fontWeight: 700, minWidth: 92 }}>
+                {Math.abs(angle) < 0.05 ? 'Tam dik' : `Dikten ${angle > 0 ? '+' : '−'}${Math.abs(angle).toFixed(1)}°`}
+              </span>
+              <button onClick={() => setAngle(angle - 0.5)} style={smallBtn}>−0.5°</button>
+              <button onClick={() => setAngle(angle + 0.5)} style={smallBtn}>+0.5°</button>
+              <button onClick={() => setAngle(0)} disabled={Math.abs(angle) < 0.05}
+                style={{ ...smallBtn, opacity: Math.abs(angle) < 0.05 ? 0.35 : 1 }}>Dik'e sıfırla</button>
+            </div>
             <span style={{ color: 'rgba(255,255,255,0.28)', fontSize: 10, textAlign: 'center' }}>
-              Hat her durumda bipupiller hatta diktir (baş eğikse de doğru yönde kalır). mm değerleri ortalama pupiller arası mesafe ({MEAN_IPD_MM} mm) kabulüyle tahminidir.
+              Varsayılan: bipupiller hatta dik (baş eğikse de doğru yönde kalır). Açıyı çizginin altındaki ◯ tutamaçla veya kaydırıcıyla değiştirebilirsiniz. mm değerleri ortalama pupiller arası mesafe ({MEAN_IPD_MM} mm) kabulüyle tahminidir.
             </span>
           </div>
         )}

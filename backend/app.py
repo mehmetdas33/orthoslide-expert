@@ -111,6 +111,18 @@ def parse_excel_endpoint():
             if report.get("missing"):
                 warnings.append("Bulunamayan ölçümler: " + ", ".join(report["missing"]))
 
+        # Kalibrasyon kontrolü: S-N (ön kafa kaidesi) yaşa göre oldukça sabittir (~65–80 mm).
+        # Çok küçük/büyükse sefalometri programında cetvel kalibrasyonu yapılmamış demektir →
+        # tüm uzunluk ölçümleri (Co-A, Co-Gn, ANS-Me, N-Me, Go-Me, mm değerleri) yanlış ölçeklidir.
+        sn = raw_data.get("S-N")
+        if isinstance(sn, (int, float)) and not (55 <= sn <= 95):
+            warnings.append(
+                f"KALİBRASYON HATASI OLABİLİR: S-N = {sn:g} mm (beklenen ~65–80 mm). "
+                f"Uzunluk ölçümleri yaklaşık {max(72 / sn, sn / 72):.1f} kat {'küçük' if sn < 55 else 'büyük'} "
+                "görünüyor — sefalometri "
+                "programında cetvel kalibrasyonunu kontrol edip Excel'i yeniden alın"
+            )
+
         # Evaluate values against reference ranges
         evaluated = evaluate_values(raw_data)
 

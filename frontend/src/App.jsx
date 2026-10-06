@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import Header from './components/Header'
 import ImageGrid from './components/ImageGrid'
 import ExcelUpload from './components/ExcelUpload'
@@ -8,22 +8,54 @@ import CropModal from './components/CropModal'
 import LineMarkModal from './components/LineMarkModal'
 import ProblemListEditor from './components/ProblemListEditor'
 import axios from 'axios'
-import imageCompression from 'browser-image-compression'
 
 const API_BASE = (import.meta.env.VITE_API_URL || '') + '/api'
 
+const MAX_DIM = 1920
+const MAX_BYTES = 1024 * 1024
+
+/**
+ * Hızlı görsel küçültme: createImageBitmap (donanım hızlandırmalı çözme, EXIF yönünü uygular)
+ * + tek seferlik canvas → JPEG. Zaten küçük olan dosyalara hiç dokunulmaz.
+ * Eski kütüphane (browser-image-compression) kaliteyi döngüyle denediği için büyük
+ * telefon fotoğraflarında saniyeler sürüyordu.
+ */
 const compressImage = async (file) => {
   if (!file || !file.type.startsWith('image/')) return file
   try {
-    const compressed = await imageCompression(file, {
-      maxSizeMB: 1,
-      maxWidthOrHeight: 1920,
-      useWebWorker: true,
-    })
-    return new File([compressed], file.name, { type: compressed.type || 'image/jpeg' })
+    const bmp = await createImageBitmap(file)
+    const scale = Math.min(1, MAX_DIM / Math.max(bmp.width, bmp.height))
+    if (scale === 1 && file.size <= MAX_BYTES) { bmp.close?.(); return file }
+    const w = Math.round(bmp.width * scale), h = Math.round(bmp.height * scale)
+    const canvas = document.createElement('canvas')
+    canvas.width = w; canvas.height = h
+    const ctx = canvas.getContext('2d')
+    ctx.imageSmoothingQuality = 'high'
+    ctx.drawImage(bmp, 0, 0, w, h)
+    bmp.close?.()
+    const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.88))
+    if (!blob) return file
+    return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' })
   } catch {
     return file
   }
+}
+
+// Dosya başına bir kez, arka planda küçült; sunum oluşturulurken hazır sonuç kullanılır
+const compressCache = new WeakMap()
+const prepareImage = (file) => {
+  if (!(file instanceof Blob)) return Promise.resolve(file)
+  let p = compressCache.get(file)
+  if (!p) {
+    p = new Promise(resolve => {
+      const run = () => compressImage(file).then(resolve, () => resolve(file))
+      // Tarayıcı boştayken çalıştır (sürükleme/çizim akıcılığını bozmasın)
+      if (window.requestIdleCallback) window.requestIdleCallback(run, { timeout: 1500 })
+      else setTimeout(run, 50)
+    })
+    compressCache.set(file, p)
+  }
+  return p
 }
 
 const SLOT_QUESTIONS = {
@@ -89,7 +121,10 @@ function App() {
   const [evaluated, setEvaluated]         = useState([])
   const [images, setImages]               = useState({})
   const imagesRef                         = useRef({})
-  useEffect(() => { imagesRef.current = images }, [images])
+  useEffect(() => {
+    imagesRef.current = images
+    Object.values(images).forEach(prepareImage)   // pencerelerden gelen (döndürülmüş/kırpılmış) dosyalar da
+  }, [images])
   const [isGenerating, setIsGenerating]   = useState(false)
   const [isLoading, setIsLoading]         = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
@@ -100,6 +135,7 @@ function App() {
   // Yeniden düzenleme için işaretlenen noktalar: { slotKey: { points, ph109 } }
   const [lineEdits, setLineEdits]         = useState({})
   const [problemList, setProblemList]     = useState(null)   // null = henüz yüklenmedi
+  const [excelWarnings, setExcelWarnings] = useState([])
   const [problemListEdited, setProblemListEdited] = useState(false)
   const [closingVideo, setClosingVideo] = useState(null)
   const videoInputRef = useRef(null)
@@ -147,6 +183,7 @@ function App() {
         setEvaluated(res.data.evaluated)
         if (res.data.patient_info) setPatientInfo(prev => ({ ...prev, ...res.data.patient_info }))
         const warnings = res.data.warnings || []
+        setExcelWarnings(warnings)
         setStatusMessage(warnings.length
           ? '⚠ Veriler yüklendi — ' + warnings.join(' · ')
           : '✓ Veriler başarıyla yüklendi')
@@ -159,8 +196,8 @@ function App() {
   }, [])
 
   const handleImageDrop = useCallback(async (slotKey, file) => {
-    const file2 = await compressImage(file)
-    file = file2
+    // Sıkıştırma beklenmez: fotoğraf hemen açılır, küçültme arka planda hazırlanır
+    prepareImage(file)
     if (slotKey === 'frontal') {
       setPendingAnnotation({ type: 'frontal_midline', file })
     } else if (slotKey === 'frontal_smile') {
@@ -214,17 +251,17 @@ function App() {
     setSlotAnnotation(slotKey, null, null)
   }, [setSlotAnnotation])
 
-  const handleFrontalMidlineConfirm = useCallback(({ file, line, points, anchor }) => {
+  const handleFrontalMidlineConfirm = useCallback(({ file, line, points, anchor, angle }) => {
     setImages(prev => ({
       ...prev,
       frontal: file,        // slayt 3 — orta hat slayta düzenlenebilir çizgi olarak eklenir
       frontal_plain: file,  // kompozit (çizgisiz)
     }))
-    setSlotAnnotation('frontal', line, line ? { points, anchor } : null)
+    setSlotAnnotation('frontal', line, line ? { points, anchor, angle } : null)
     setPendingAnnotation(null)
   }, [setSlotAnnotation])
 
-  const handlePupilConfirm = useCallback(({ file, ph109, line, points, anchor }) => {
+  const handlePupilConfirm = useCallback(({ file, ph109, line, points, anchor, angle }) => {
     setImages(prev => ({
       ...prev,
       frontal_smile: file,        // slayt 4 — orta hat slayta düzenlenebilir çizgi olarak eklenir
@@ -235,11 +272,16 @@ function App() {
       if (ph109) n.ph109 = ph109; else delete n.ph109
       return n
     })
-    setSlotAnnotation('frontal_smile', line, { points, ph109, anchor })
+    setSlotAnnotation('frontal_smile', line, { points, ph109, anchor, angle })
     setPendingAnnotation(null)
   }, [setSlotAnnotation])
 
   // Grid'deki ✎ butonu: çizgiyi/noktaları sonradan yeniden düzenle
+  const editableSlots = useMemo(
+    () => EDITABLE_LINE_SLOTS.filter(k => (k === 'cephalometric' ? images.cephalometric_crop : images[k])),
+    [images],
+  )
+
   const handleEditLine = useCallback((slotKey) => {
     const imgs = imagesRef.current
     if (slotKey === 'frontal' && imgs.frontal) {
@@ -365,7 +407,9 @@ function App() {
     }
     if (problemList) finalPatientInfo.problem_list = problemList.map(t => t.trim()).filter(Boolean)
     formData.append('patient_info', JSON.stringify(finalPatientInfo))
-    Object.entries(images).forEach(([key, file]) => formData.append(key, file))
+    // Arka planda hazırlanan küçültülmüş görseller (çoğu zaman çoktan hazırdır)
+    const prepared = await Promise.all(Object.entries(images).map(async ([key, file]) => [key, await prepareImage(file)]))
+    prepared.forEach(([key, file]) => formData.append(key, file))
     // Sadece yüklü fotoğraflara ait çizgiler
     const activeAnnotations = Object.fromEntries(Object.entries(annotations).filter(([k]) => images[k]))
     formData.append('annotations', JSON.stringify(activeAnnotations))
@@ -391,12 +435,14 @@ function App() {
       {pendingAnnotation?.type === 'frontal_midline' && (
         <PupilLineModal file={pendingAnnotation.file} midlineOnly initialPoints={pendingAnnotation.edit?.points}
           initialAnchor={pendingAnnotation.edit?.anchor}
+          initialAngle={pendingAnnotation.edit?.angle}
           onConfirm={handleFrontalMidlineConfirm} onCancel={handleAnnotationCancel} />
       )}
       {pendingAnnotation?.type === 'pupil' && (
         <PupilLineModal file={pendingAnnotation.file} initialPoints={pendingAnnotation.edit?.points}
           initialPh109={pendingAnnotation.edit?.ph109 ?? null}
           initialAnchor={pendingAnnotation.edit?.anchor}
+          initialAngle={pendingAnnotation.edit?.angle}
           onConfirm={handlePupilConfirm} onCancel={handleAnnotationCancel} />
       )}
       {pendingAnnotation?.type === 'crop' && (
@@ -434,10 +480,19 @@ function App() {
         imageCount={Object.keys(images).length} statusMessage={statusMessage} />
       <div style={{ maxWidth: '1600px', margin: '20px auto 0' }}>
         <ExcelUpload onUpload={handleExcelUpload} isLoading={isLoading} />
+        {excelWarnings.length > 0 && (
+          <div className="mt-3 space-y-1.5">
+            {excelWarnings.map((w, i) => (
+              <div key={i} className={`px-4 py-2.5 rounded-xl text-xs font-medium border ${
+                w.startsWith('KALİBRASYON') ? 'bg-red-500/10 text-red-300 border-red-500/30' : 'bg-amber-500/10 text-amber-300 border-amber-500/25'
+              }`}>⚠ {w}</div>
+            ))}
+          </div>
+        )}
         <div className="mt-5">
           <ImageGrid images={images} annotations={annotations} onImageDrop={handleImageDrop} onImageRemove={handleImageRemove}
             onImageRotate={handleImageRotate} onReset={handleImageReset}
-            onEditLine={handleEditLine} editableSlots={EDITABLE_LINE_SLOTS.filter(k => k === 'cephalometric' ? images.cephalometric_crop : images[k])} />
+            onEditLine={handleEditLine} editableSlots={editableSlots} />
         </div>
         {cephData && problemList && (
           <div className="mt-5">
