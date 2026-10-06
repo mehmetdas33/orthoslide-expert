@@ -17,6 +17,9 @@ from PIL import Image
 
 from ceph_logic import (
     round_for_display,
+    round_half_up,
+    get_coa_norm,
+    YAXIS_NORM_TEXT,
     REFERENCE_RANGES,
     EXCEL_ROW_MAP,
     evaluate_values,
@@ -541,28 +544,18 @@ def generate_pptx(
             pass
 
     if co_a_float is not None:
-        # PH86: Co-A reference = Co-A − N-A (dynamic, patient-specific)
-        n_a_val = ceph_data.get("N-A")
-        n_a_float = None
-        if n_a_val is not None:
-            try:
-                n_a_float = float(n_a_val)
-            except (ValueError, TypeError):
-                pass
-
-        if n_a_float is not None:
-            co_a_reference = co_a_float - n_a_float
-            placeholder_text_map["Placeholder 86"] = {
-                "value": str(round(co_a_reference)), "status": "normal", "bold": True,
-            }
-            # PH16: Co-A actual value colored by PH86 reference
-            _co_a_s = "high" if co_a_float > co_a_reference else ("low" if co_a_float < co_a_reference else "normal")
-            placeholder_text_map["Placeholder 16"] = {
-                "value": str(round(co_a_float)), "status": _co_a_s, "bold": True,
-            }
-        else:
-            co_a_reference = None
-            _co_a_s = "normal"
+        # PH86: Co-A (efektif orta yüz uzunluğu) normu — McNamara: cinsiyet ve yaşa göre
+        # (eskiden "Co-A − N-A" kullanılıyordu; bu sadece N-A'nın işaretini veriyordu)
+        _coa_mean, _coa_sd = get_coa_norm((patient_info or {}).get("gender"), patient_age_years(patient_info))
+        _coa_low  = round_half_up(_coa_mean - _coa_sd)
+        _coa_high = round_half_up(_coa_mean + _coa_sd)
+        placeholder_text_map["Placeholder 86"] = {
+            "value": f"{_coa_low}-{_coa_high}", "status": "normal", "bold": True,
+        }
+        _co_a_s = "high" if co_a_float > _coa_high else ("low" if co_a_float < _coa_low else "normal")
+        placeholder_text_map["Placeholder 16"] = {
+            "value": str(round(co_a_float)), "status": _co_a_s, "bold": True,
+        }
 
         # PH90: Co-A interpretation (increased/decreased/normal)
         placeholder_text_map["Placeholder 90"] = {
@@ -723,6 +716,16 @@ def generate_pptx(
             font_size=info.get("font_size"),
             font_name=info.get("font_name"),
         )
+
+    # Şablondaki Y ekseni normu FH'ye göre (59° ± 6) yazılmış; ölçüm SN'ye göre → düzelt
+    for _shape in prs.slides[11].shapes:
+        if _shape.has_table:
+            for _row in _shape.table.rows:
+                for _cell in _row.cells:
+                    for _para in _cell.text_frame.paragraphs:
+                        for _run in _para.runs:
+                            if "59° ± 6" in _run.text:
+                                _run.text = _run.text.replace("59° ± 6", YAXIS_NORM_TEXT)
 
     # Değer atanmamış kalan "Placeholder N" yazılarını temizle (slaytta ham metin kalmasın)
     _leftover = re.compile(r"Placeholder \d+")

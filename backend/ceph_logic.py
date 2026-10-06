@@ -16,7 +16,9 @@ REFERENCE_RANGES = {
     "Wits":         {"name": "Wits Appraisal",        "low": -4,    "high": 2,     "unit": "mm"},
 
     # ── Skeletal (Vertical) ──
-    "Y-Axis":       {"name": "Y Axis",                "low": 53,    "high": 65,    "unit": "°"},
+    # Y ekseni burada S-Gn / SN açısı ("Y axis to SN"): ~66° (Björk/Steiner kaynaklı normlar;
+    # erkek 66.5±2.4, kadın 66.0±2.0). Eski 59°±6 FH'ye göre (Downs) olan normdu.
+    "Y-Axis":       {"name": "Y Axis (SN-SGn)",       "low": 62,    "high": 70,    "unit": "°"},
     "SN-GoMe":      {"name": "SN-GoMe",               "low": 25,    "high": 39,    "unit": "°"},
     "SN-PP":        {"name": "SN-PP",                 "low": 5,     "high": 9,     "unit": "°"},
     "Mx-Md":        {"name": "Mx-Md Angle",           "low": 19,    "high": 31,    "unit": "°"},
@@ -27,7 +29,8 @@ REFERENCE_RANGES = {
     "S-Go":         {"name": "S-Go",                  "low": 70.4,  "high": 78.4,  "unit": "mm"},
     "S-Go/N-Me":    {"name": "S-Go / N-Me",           "low": 61,    "high": 69,    "unit": "%"},
     "ANS-Me":       {"name": "ANS-Me",                "low": 38,    "high": 98,    "unit": "mm"},
-    "Co-A":         {"name": "Co-A (Ef. Midface)",    "low": 71,    "high": 111,   "unit": "mm"},
+    # Co-A slaytta cinsiyet/yaşa göre değerlendirilir (get_coa_norm); burası genel yetişkin aralığı
+    "Co-A":         {"name": "Co-A (Ef. Midface)",    "low": 87,    "high": 106,   "unit": "mm"},
     "Co-Gn":        {"name": "Co-Gn (Ef. Mandible)", "low": 97,    "high": 137,   "unit": "mm"},
     "S-N":          {"name": "S-N",                   "low": 70.2,  "high": 76.2,  "unit": "mm"},   # 73.2 ± 3
     "Go-Me":        {"name": "Go-Me",                 "low": 72.6,  "high": 83.6,  "unit": "mm"},   # 78.1 ± 5.5
@@ -428,6 +431,32 @@ def get_placeholder_71_text(data: dict) -> str:
         _incisor_status(deg, ref_deg["low"], ref_deg["high"]),
         "lower",
     )
+
+
+YAXIS_NORM_TEXT = "66° ± 4"
+
+# McNamara efektif orta yüz uzunluğu (Co-A) normları: (ortalama, SD) mm
+#  - Yetişkin: McNamara JA. A method of cephalometric evaluation. AJO 1984 (Ann Arbor örneklemi)
+#  - 16 yaş altı: Kılıç N, Çatal G, Oktay H. McNamara norms for Turkish adolescents.
+#    Aust Orthod J 2010;26:33-37 (11–16 yaş Türk ergenler)
+_COA_NORMS = {
+    ("adult", "female"): (91.0, 4.3),
+    ("adult", "male"):   (99.8, 6.0),
+    ("adolescent", "female"): (88.65, 4.13),
+    ("adolescent", "male"):   (91.39, 4.73),
+}
+
+
+def get_coa_norm(gender, age_years):
+    """Co-A normu (ortalama, SD). Cinsiyet bilinmiyorsa iki cinsiyetin ortalaması."""
+    group = "adolescent" if age_years is not None and age_years < 16 else "adult"
+    g = str(gender or "").strip().lower()
+    if g in ("female", "kadın", "kadin", "f"):
+        return _COA_NORMS[(group, "female")]
+    if g in ("male", "erkek", "m"):
+        return _COA_NORMS[(group, "male")]
+    f, m = _COA_NORMS[(group, "female")], _COA_NORMS[(group, "male")]
+    return ((f[0] + m[0]) / 2, (f[1] + m[1]) / 2)
 
 
 def round_half_up(v: float) -> int:

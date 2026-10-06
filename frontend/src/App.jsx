@@ -214,17 +214,17 @@ function App() {
     setSlotAnnotation(slotKey, null, null)
   }, [setSlotAnnotation])
 
-  const handleFrontalMidlineConfirm = useCallback(({ file, line, points }) => {
+  const handleFrontalMidlineConfirm = useCallback(({ file, line, points, anchor }) => {
     setImages(prev => ({
       ...prev,
       frontal: file,        // slayt 3 — orta hat slayta düzenlenebilir çizgi olarak eklenir
       frontal_plain: file,  // kompozit (çizgisiz)
     }))
-    setSlotAnnotation('frontal', line, line ? { points } : null)
+    setSlotAnnotation('frontal', line, line ? { points, anchor } : null)
     setPendingAnnotation(null)
   }, [setSlotAnnotation])
 
-  const handlePupilConfirm = useCallback(({ file, ph109, line, points }) => {
+  const handlePupilConfirm = useCallback(({ file, ph109, line, points, anchor }) => {
     setImages(prev => ({
       ...prev,
       frontal_smile: file,        // slayt 4 — orta hat slayta düzenlenebilir çizgi olarak eklenir
@@ -235,7 +235,7 @@ function App() {
       if (ph109) n.ph109 = ph109; else delete n.ph109
       return n
     })
-    setSlotAnnotation('frontal_smile', line, { points, ph109 })
+    setSlotAnnotation('frontal_smile', line, { points, ph109, anchor })
     setPendingAnnotation(null)
   }, [setSlotAnnotation])
 
@@ -390,11 +390,13 @@ function App() {
     <div className="min-h-screen p-4 md:p-6">
       {pendingAnnotation?.type === 'frontal_midline' && (
         <PupilLineModal file={pendingAnnotation.file} midlineOnly initialPoints={pendingAnnotation.edit?.points}
+          initialAnchor={pendingAnnotation.edit?.anchor}
           onConfirm={handleFrontalMidlineConfirm} onCancel={handleAnnotationCancel} />
       )}
       {pendingAnnotation?.type === 'pupil' && (
         <PupilLineModal file={pendingAnnotation.file} initialPoints={pendingAnnotation.edit?.points}
           initialPh109={pendingAnnotation.edit?.ph109 ?? null}
+          initialAnchor={pendingAnnotation.edit?.anchor}
           onConfirm={handlePupilConfirm} onCancel={handleAnnotationCancel} />
       )}
       {pendingAnnotation?.type === 'crop' && (
