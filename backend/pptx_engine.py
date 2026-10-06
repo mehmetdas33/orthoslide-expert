@@ -17,8 +17,6 @@ from PIL import Image
 
 from ceph_logic import (
     round_for_display,
-    round_half_up,
-    get_coa_norm,
     YAXIS_NORM_TEXT,
     REFERENCE_RANGES,
     EXCEL_ROW_MAP,
@@ -445,6 +443,7 @@ def generate_pptx(
     prs = Presentation(template_path)
 
     # Slaytta tam sayı gösterildiği için renk/yorumlar da gösterilen değere göre hesaplanır
+    raw_ceph_data = dict(ceph_data)   # jaw dimension eski yöntemle ham değerleri kullanır
     ceph_data = round_for_display(ceph_data)
     evaluated = evaluate_values(ceph_data)
     diagnosis = generate_diagnosis(ceph_data)
@@ -531,11 +530,28 @@ def generate_pptx(
         "value": get_placeholder_97_text(ceph_data), "status": "normal", "bold": True
     }
 
+    # ── Jaw Dimension (Slayt 13) — kullanıcı isteğiyle ESKİ mekanizma (2026-10-07) ──────
+    # Ham (yuvarlanmamış) Excel değerleriyle değerlendirilir; PH86 = Co-A − N-A.
+    # PH18/PH19 (S-N, Go-Me) da eski yöntemle (ham değer, REFERENCE_RANGES) renklendirilir.
+    jaw_data = raw_ceph_data
+    _raw_eval = {it["key"]: it["status"] for it in evaluate_values(jaw_data)}
+    for _key in ("ANS-Me", "Co-A", "Co-Gn", "S-N", "Go-Me"):
+        _v = jaw_data.get(_key)
+        if _v is None:
+            continue
+        try:
+            _disp = str(round(float(_v)))
+        except (ValueError, TypeError):
+            _disp = str(_v)
+        placeholder_text_map[f"Placeholder {EXCEL_ROW_MAP.index(_key) + 1}"] = {
+            "value": _disp, "status": _raw_eval.get(_key, "normal"), "bold": True,
+        }
+
     # ── Jaw Length Analysis ──────────────────────────────────────────────────
     # PH85/86/87 = reference ranges (displayed on slide 14)
     # PH15/16/17 = actual measured values, colored by their reference ranges
     # PH90/91/92 = interpretation texts: increased / normal / decreased
-    co_a_val = ceph_data.get("Co-A")
+    co_a_val = jaw_data.get("Co-A")
     co_a_float = None
     if co_a_val is not None:
         try:
@@ -544,18 +560,28 @@ def generate_pptx(
             pass
 
     if co_a_float is not None:
-        # PH86: Co-A (efektif orta yüz uzunluğu) normu — McNamara: cinsiyet ve yaşa göre
-        # (eskiden "Co-A − N-A" kullanılıyordu; bu sadece N-A'nın işaretini veriyordu)
-        _coa_mean, _coa_sd = get_coa_norm((patient_info or {}).get("gender"), patient_age_years(patient_info))
-        _coa_low  = round_half_up(_coa_mean - _coa_sd)
-        _coa_high = round_half_up(_coa_mean + _coa_sd)
-        placeholder_text_map["Placeholder 86"] = {
-            "value": f"{_coa_low}-{_coa_high}", "status": "normal", "bold": True,
-        }
-        _co_a_s = "high" if co_a_float > _coa_high else ("low" if co_a_float < _coa_low else "normal")
-        placeholder_text_map["Placeholder 16"] = {
-            "value": str(round(co_a_float)), "status": _co_a_s, "bold": True,
-        }
+        # PH86: Co-A reference = Co-A − N-A (dynamic, patient-specific)
+        n_a_val = jaw_data.get("N-A")
+        n_a_float = None
+        if n_a_val is not None:
+            try:
+                n_a_float = float(n_a_val)
+            except (ValueError, TypeError):
+                pass
+
+        if n_a_float is not None:
+            co_a_reference = co_a_float - n_a_float
+            placeholder_text_map["Placeholder 86"] = {
+                "value": str(round(co_a_reference)), "status": "normal", "bold": True,
+            }
+            # PH16: Co-A actual value colored by PH86 reference
+            _co_a_s = "high" if co_a_float > co_a_reference else ("low" if co_a_float < co_a_reference else "normal")
+            placeholder_text_map["Placeholder 16"] = {
+                "value": str(round(co_a_float)), "status": _co_a_s, "bold": True,
+            }
+        else:
+            co_a_reference = None
+            _co_a_s = "normal"
 
         # PH90: Co-A interpretation (increased/decreased/normal)
         placeholder_text_map["Placeholder 90"] = {
@@ -577,7 +603,7 @@ def generate_pptx(
         }
 
         # PH17: Co-Gn actual value colored by dynamic range; PH91: interpretation
-        co_gn_val = ceph_data.get("Co-Gn")
+        co_gn_val = jaw_data.get("Co-Gn")
         if co_gn_val is not None:
             try:
                 co_gn_f = float(co_gn_val)
@@ -593,7 +619,7 @@ def generate_pptx(
                 pass
 
         # PH15: ANS-Me actual value colored by dynamic range; PH92: interpretation
-        ans_me_raw = ceph_data.get("ANS-Me")
+        ans_me_raw = jaw_data.get("ANS-Me")
         if ans_me_raw is not None:
             try:
                 ans_me_f = float(ans_me_raw)
