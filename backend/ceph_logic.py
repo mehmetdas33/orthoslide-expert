@@ -29,16 +29,16 @@ REFERENCE_RANGES = {
     "ANS-Me":       {"name": "ANS-Me",                "low": 38,    "high": 98,    "unit": "mm"},
     "Co-A":         {"name": "Co-A (Ef. Midface)",    "low": 71,    "high": 111,   "unit": "mm"},
     "Co-Gn":        {"name": "Co-Gn (Ef. Mandible)", "low": 97,    "high": 137,   "unit": "mm"},
-    "S-N":          {"name": "S-N",                   "low": 70,    "high": 76,    "unit": "mm"},
-    "Go-Me":        {"name": "Go-Me",                 "low": 72.5,  "high": 83.5,  "unit": "mm"},
+    "S-N":          {"name": "S-N",                   "low": 70.2,  "high": 76.2,  "unit": "mm"},   # 73.2 ± 3
+    "Go-Me":        {"name": "Go-Me",                 "low": 72.6,  "high": 83.6,  "unit": "mm"},   # 78.1 ± 5.5
 
     # ── Dental ──
     "U1-SN":        {"name": "U1-SN",                 "low": 97,    "high": 107,   "unit": "°"},
     "U1-PP":        {"name": "U1-PP",                 "low": 105,   "high": 115,   "unit": "°"},
     "U1-NA-mm":     {"name": "U1-NA (mm)",            "low": 1,     "high": 7,     "unit": "mm"},
     "U1-NA-deg":    {"name": "U1/NA (°)",             "low": 16,    "high": 28,    "unit": "°"},
-    "U1-OP":        {"name": "U1/OP",                 "low": 54,    "high": 60,    "unit": "°"},
-    "L1-Apog":      {"name": "L1-Apog",               "low": 1,     "high": 3,     "unit": "mm"},
+    "U1-OP":        {"name": "U1/OP",                 "low": 54.8,  "high": 60.8,  "unit": "°"},    # 57.8 ± 3
+    "L1-Apog":      {"name": "L1-Apog",               "low": 1.7,   "high": 3.7,   "unit": "mm"},   # 2.7 ± 1
     "IMPA":         {"name": "IMPA (L1-MeGo)",        "low": 85,    "high": 95,    "unit": "°"},
     "L1-NB-mm":     {"name": "L1-NB (mm)",            "low": 2,     "high": 6,     "unit": "mm"},
     "L1-NB-deg":    {"name": "L1/NB (°)",             "low": 19,    "high": 31,    "unit": "°"},
@@ -428,6 +428,27 @@ def get_placeholder_71_text(data: dict) -> str:
         _incisor_status(deg, ref_deg["low"], ref_deg["high"]),
         "lower",
     )
+
+
+def round_half_up(v: float) -> int:
+    """Klasik yuvarlama (2.5 → 3, -2.5 → -3); Python round() 2.5'i 2'ye yuvarlar."""
+    import math
+    return int(math.copysign(math.floor(abs(v) + 0.5), v))
+
+
+def round_for_display(data: dict) -> dict:
+    """
+    Slaytta değerler tam sayı gösterildiği için tüm değerlendirmeler (renk, yorum metinleri)
+    gösterilen tam sayı üzerinden yapılır — "84" yazıp kırmızı görünmesi gibi çelişkiler olmaz.
+    ANB, yuvarlanmış SNA − SNB olarak hesaplanır (slayttaki aritmetikle tutarlı).
+    """
+    out = {}
+    for k, v in data.items():
+        f = _get_float(data, k)
+        out[k] = round_half_up(f) if f is not None else v
+    if _get_float(out, "SNA") is not None and _get_float(out, "SNB") is not None:
+        out["ANB"] = out["SNA"] - out["SNB"]
+    return out
 
 
 def _get_float(data: dict, key: str):

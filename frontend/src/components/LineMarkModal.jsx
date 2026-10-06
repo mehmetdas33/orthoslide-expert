@@ -1,4 +1,6 @@
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
+import { toNormLine, normPoints, denormPoints, CEPH_LINE_STYLE } from '../lib/annotation'
+import { usePointEditor, distToLine } from '../lib/usePointEditor'
 
 const MAG_SIZE = 150
 const MAG_ZOOM = 4
@@ -31,57 +33,53 @@ function lineEndpoints(p1, p2, W, H) {
   return candidates.slice(0, 2)
 }
 
-function drawPreview(ctx, W, H, points) {
+function drawPreview(ctx, W, H, points, active = -1, s = 1) {
   if (points.length === 2) {
     const ends = lineEndpoints(points[0], points[1], W, H)
     if (ends.length === 2) {
-      ctx.save()
       ctx.beginPath()
       ctx.moveTo(ends[0].x, ends[0].y)
       ctx.lineTo(ends[1].x, ends[1].y)
       ctx.strokeStyle = 'rgba(156,163,175,0.85)'
-      ctx.lineWidth = 1.5
+      ctx.lineWidth = 1.5 * s
       ctx.stroke()
-      ctx.restore()
     }
   }
   points.forEach((p, i) => {
     ctx.beginPath()
-    ctx.arc(p.x, p.y, 6, 0, Math.PI * 2)
+    ctx.arc(p.x, p.y, (i === active ? 8 : 6) * s, 0, Math.PI * 2)
     ctx.fillStyle = '#6B7280'
     ctx.fill()
     ctx.strokeStyle = 'white'
-    ctx.lineWidth = 1.5
+    ctx.lineWidth = 1.5 * s
     ctx.stroke()
     ctx.fillStyle = 'white'
-    ctx.font = 'bold 10px sans-serif'
+    ctx.font = `bold ${10 * s}px sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText(String(i + 1), p.x, p.y)
   })
 }
 
-function drawLineOnly(ctx, W, H, p1, p2) {
-  const ends = lineEndpoints(p1, p2, W, H)
-  if (ends.length !== 2) return
-  ctx.beginPath()
-  ctx.moveTo(ends[0].x, ends[0].y)
-  ctx.lineTo(ends[1].x, ends[1].y)
-  ctx.strokeStyle = '#888888'
-  ctx.lineWidth = 2
-  ctx.stroke()
-}
+const clampPt = (p, W, H) => ({ x: Math.max(0, Math.min(W, p.x)), y: Math.max(0, Math.min(H, p.y)) })
+const lineHit = (p, pts, tol) =>
+  pts.length === 2 && distToLine(p, pts[0], { x: pts[1].x - pts[0].x, y: pts[1].y - pts[0].y }) <= tol
+const dragLine = (start, dx, dy, W, H) => start.map(q => clampPt({ x: q.x + dx, y: q.y + dy }, W, H))
 
-export default function LineMarkModal({ file, onConfirm, onCancel }) {
+export default function LineMarkModal({ file, onConfirm, onCancel, initialPoints = null }) {
   const imgRef    = useRef(null)
   const canvasRef = useRef(null)
   const magRef    = useRef(null)
   const [imgSrc, setImgSrc]   = useState(null)
   const [dispW, setDispW]     = useState(0)
   const [dispH, setDispH]     = useState(0)
-  const [points, setPoints]   = useState([])
-  const [mousePos, setMousePos] = useState(null)
   const [saving, setSaving]   = useState(false)
+
+  const magnifier = useMemo(() => ({ ref: magRef, imgRef, size: MAG_SIZE, zoom: MAG_ZOOM, color: 'rgba(156,163,175,0.8)' }), [])
+  const { points, setPoints, showMagnifier, handlers } = usePointEditor({
+    canvasRef, dispW, dispH, maxPoints: 2,
+    draw: drawPreview, lineHit, dragLine, magnifier,
+  })
 
   useEffect(() => {
     const reader = new FileReader()
@@ -94,108 +92,31 @@ export default function LineMarkModal({ file, onConfirm, onCancel }) {
     const maxW = Math.min(window.innerWidth * 0.84, 940)
     const maxH = window.innerHeight * 0.62
     const s    = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1)
-    setDispW(Math.round(img.naturalWidth  * s))
-    setDispH(Math.round(img.naturalHeight * s))
+    const w = Math.round(img.naturalWidth  * s), h = Math.round(img.naturalHeight * s)
+    setDispW(w)
+    setDispH(h)
+    if (initialPoints?.length === 2) setPoints(denormPoints(initialPoints, w, h))
   }
 
   const loaded = dispW > 0 && dispH > 0
 
-  // Annotation canvas
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || !dispW || !dispH) return
-    canvas.width  = dispW
-    canvas.height = dispH
-    const ctx = canvas.getContext('2d')
-    ctx.clearRect(0, 0, dispW, dispH)
-    drawPreview(ctx, dispW, dispH, points)
-  }, [points, dispW, dispH])
-
-  // Magnifier
-  useEffect(() => {
-    const magCanvas = magRef.current
-    const img = imgRef.current
-    if (!magCanvas || !img || !mousePos || !dispW || !dispH) return
-    const sX = img.naturalWidth  / dispW
-    const sY = img.naturalHeight / dispH
-    magCanvas.width  = MAG_SIZE
-    magCanvas.height = MAG_SIZE
-    const ctx = magCanvas.getContext('2d')
-    const srcW = (MAG_SIZE / MAG_ZOOM) * sX
-    const srcH = (MAG_SIZE / MAG_ZOOM) * sY
-    const srcX = Math.max(0, Math.min(mousePos.cx * sX - srcW / 2, img.naturalWidth  - srcW))
-    const srcY = Math.max(0, Math.min(mousePos.cy * sY - srcH / 2, img.naturalHeight - srcH))
-    ctx.save()
-    ctx.beginPath()
-    ctx.arc(MAG_SIZE / 2, MAG_SIZE / 2, MAG_SIZE / 2, 0, Math.PI * 2)
-    ctx.clip()
-    ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, MAG_SIZE, MAG_SIZE)
-    ctx.strokeStyle = 'rgba(156,163,175,0.7)'
-    ctx.lineWidth = 0.8
-    ctx.beginPath()
-    ctx.moveTo(MAG_SIZE / 2, MAG_SIZE / 2 - 8); ctx.lineTo(MAG_SIZE / 2, MAG_SIZE / 2 + 8)
-    ctx.moveTo(MAG_SIZE / 2 - 8, MAG_SIZE / 2); ctx.lineTo(MAG_SIZE / 2 + 8, MAG_SIZE / 2)
-    ctx.stroke()
-    ctx.restore()
-    ctx.beginPath()
-    ctx.arc(MAG_SIZE / 2, MAG_SIZE / 2, MAG_SIZE / 2 - 1, 0, Math.PI * 2)
-    ctx.strokeStyle = 'rgba(156,163,175,0.6)'
-    ctx.lineWidth = 2
-    ctx.stroke()
-  }, [mousePos, dispW, dispH])
-
-  const handleCanvasClick = (e) => {
-    if (points.length >= 2) return
-    const canvas = canvasRef.current
-    const rect   = canvas.getBoundingClientRect()
-    const x = (e.clientX - rect.left) * (canvas.width  / rect.width)
-    const y = (e.clientY - rect.top)  * (canvas.height / rect.height)
-    setPoints(prev => [...prev, { x, y }])
-  }
-
-  const handleMouseMove = useCallback((e) => {
-    if (points.length >= 2) { setMousePos(null); return }
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    setMousePos({
-      cx: (e.clientX - rect.left) * (canvas.width  / rect.width),
-      cy: (e.clientY - rect.top)  * (canvas.height / rect.height),
-      clientX: e.clientX, clientY: e.clientY,
-    })
-  }, [points.length])
-
-  const handleMouseLeave = useCallback(() => setMousePos(null), [])
-
   const handleConfirm = useCallback(() => {
     if (points.length < 2 || saving) return
+    // Çizgi gömülmez — slayta düzenlenebilir çizgi olarak eklenir
+    const ends = lineEndpoints(points[0], points[1], dispW, dispH)
+    if (ends.length !== 2) return
     setSaving(true)
-    const img = imgRef.current
-    if (!img) return
-    const natW = img.naturalWidth, natH = img.naturalHeight
-    const sX   = natW / dispW, sY = natH / dispH
-    const p1nat = { x: points[0].x * sX, y: points[0].y * sY }
-    const p2nat = { x: points[1].x * sX, y: points[1].y * sY }
-
-    // Cropped photo + grey line overlay
-    const fc = document.createElement('canvas')
-    fc.width  = natW; fc.height = natH
-    const ctx = fc.getContext('2d')
-    ctx.drawImage(img, 0, 0, natW, natH)
-    drawLineOnly(ctx, natW, natH, p1nat, p2nat)
-
-    fc.toBlob(blob => {
-      if (!blob) { setSaving(false); return }
-      onConfirm(new File([blob], file.name.replace(/\.[^.]+$/, '') + '_line.jpg', { type: 'image/jpeg' }))
-    }, 'image/jpeg', 0.95)
+    onConfirm({
+      file,
+      line: toNormLine(ends, dispW, dispH, CEPH_LINE_STYLE),
+      points: normPoints(points, dispW, dispH),
+    })
   }, [points, file, dispW, dispH, onConfirm, saving])
 
   const hint = points.length === 0 ? 'Birinci noktayı işaretleyin'
              : points.length === 1 ? 'İkinci noktayı işaretleyin'
-             :                       '✓ Çizgi hazır — onaylayın'
+             :                       '✓ Noktaları veya çizgiyi sürükleyin · ince ayar: ok tuşları — sonra onaylayın'
 
-  const magLeft = mousePos ? mousePos.clientX + 20 : 0
-  const magTop  = mousePos ? mousePos.clientY - MAG_SIZE - 10 : 0
 
   return (
     <div style={{
@@ -229,17 +150,16 @@ export default function LineMarkModal({ file, onConfirm, onCancel }) {
               style={{ display: 'block', width: loaded ? dispW : 0, height: loaded ? dispH : 0 }} />
           )}
           {loaded && (
-            <canvas ref={canvasRef} onClick={handleCanvasClick}
-              onMouseMove={handleMouseMove} onMouseLeave={handleMouseLeave}
+            <canvas ref={canvasRef} {...handlers}
               style={{
                 position: 'absolute', top: 0, left: 0, width: dispW, height: dispH,
-                cursor: points.length < 2 ? 'crosshair' : 'default',
+                cursor: 'crosshair', touchAction: 'none', outline: 'none',
               }} />
           )}
         </div>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button onClick={() => { setPoints([]); setMousePos(null) }} disabled={points.length === 0}
+          <button onClick={() => setPoints([])} disabled={points.length === 0}
             style={{
               padding: '9px 18px', borderRadius: 9, fontSize: 12, fontWeight: 600,
               cursor: points.length === 0 ? 'not-allowed' : 'pointer',
@@ -265,9 +185,9 @@ export default function LineMarkModal({ file, onConfirm, onCancel }) {
 
       </div>
 
-      {mousePos && loaded && (
+      {loaded && (
         <canvas ref={magRef} style={{
-          position: 'fixed', left: magLeft, top: Math.max(10, magTop),
+          position: 'fixed', left: -9999, top: 0, display: showMagnifier ? 'block' : 'none',
           width: MAG_SIZE, height: MAG_SIZE, borderRadius: '50%',
           pointerEvents: 'none', zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,0.8)',
         }} />

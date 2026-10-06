@@ -6,6 +6,7 @@ import PupilLineModal from './components/PupilLineModal'
 import PhotoQuestionModal from './components/PhotoQuestionModal'
 import CropModal from './components/CropModal'
 import LineMarkModal from './components/LineMarkModal'
+import ProblemListEditor from './components/ProblemListEditor'
 import axios from 'axios'
 import imageCompression from 'browser-image-compression'
 
@@ -78,6 +79,10 @@ const SLOT_QUESTIONS = {
   ],
 }
 
+const EDITABLE_LINE_SLOTS = ['frontal', 'frontal_smile', 'cephalometric']
+// Slot'a bağlı türev görseller/çizgiler (ör. sefalometri → crop + çizgi slaytı)
+const DERIVED_SLOTS = { frontal: ['frontal_plain'], frontal_smile: ['frontal_smile_plain'], cephalometric: ['cephalometric_crop', 'cephalometric_line'] }
+
 function App() {
   const [patientInfo, setPatientInfo]     = useState({ patient_name: '', complaint: 'My teeth are crooked' })
   const [cephData, setCephData]           = useState(null)
@@ -90,7 +95,12 @@ function App() {
   const [statusMessage, setStatusMessage] = useState('')
   const [pendingAnnotation, setPendingAnnotation] = useState(null)
   const [annotationAnswers, setAnnotationAnswers] = useState({})
-  const [frontalMidlineX, setFrontalMidlineX] = useState(null)
+  // Slayta düzenlenebilir çizgi olarak eklenecek işaretler: { slotKey: [line] }
+  const [annotations, setAnnotations]     = useState({})
+  // Yeniden düzenleme için işaretlenen noktalar: { slotKey: { points, ph109 } }
+  const [lineEdits, setLineEdits]         = useState({})
+  const [problemList, setProblemList]     = useState(null)   // null = henüz yüklenmedi
+  const [problemListEdited, setProblemListEdited] = useState(false)
   const [closingVideo, setClosingVideo] = useState(null)
   const videoInputRef = useRef(null)
 
@@ -136,7 +146,10 @@ function App() {
         setCephData(res.data.raw_data)
         setEvaluated(res.data.evaluated)
         if (res.data.patient_info) setPatientInfo(prev => ({ ...prev, ...res.data.patient_info }))
-        setStatusMessage('✓ Veriler başarıyla yüklendi')
+        const warnings = res.data.warnings || []
+        setStatusMessage(warnings.length
+          ? '⚠ Veriler yüklendi — ' + warnings.join(' · ')
+          : '✓ Veriler başarıyla yüklendi')
       }
     } catch (err) {
       setStatusMessage('✗ Excel okuma hatası: ' + (err.response?.data?.error || err.message))
@@ -169,38 +182,74 @@ function App() {
     }
   }, [])
 
-  const handleImageRemove = useCallback((slotKey) => {
-    setImages(prev => { const n = { ...prev }; delete n[slotKey]; return n })
+  const setSlotAnnotation = useCallback((slotKey, line, edit) => {
+    setAnnotations(prev => {
+      const n = { ...prev }
+      if (line) n[slotKey] = [line]; else delete n[slotKey]
+      return n
+    })
+    setLineEdits(prev => {
+      const n = { ...prev }
+      if (edit) n[slotKey] = edit; else delete n[slotKey]
+      return n
+    })
   }, [])
+
+  const handleImageRemove = useCallback((slotKey) => {
+    const keys = [slotKey, ...(DERIVED_SLOTS[slotKey] || [])]
+    setImages(prev => { const n = { ...prev }; keys.forEach(k => delete n[k]); return n })
+    keys.forEach(k => setSlotAnnotation(k, null, null))
+  }, [setSlotAnnotation])
 
   const handleImageReset = useCallback(() => {
     setImages({})
     setAnnotationAnswers({})
+    setAnnotations({})
+    setLineEdits({})
   }, [])
 
   const handleImageRotate = useCallback((slotKey, rotatedFile) => {
     setImages(prev => ({ ...prev, [slotKey]: rotatedFile }))
-  }, [])
+    // Döndürülen fotoğrafta eski çizgi konumu geçersiz olur
+    setSlotAnnotation(slotKey, null, null)
+  }, [setSlotAnnotation])
 
-  const handleFrontalMidlineConfirm = useCallback((annotatedFile, _ph109, originalFile) => {
+  const handleFrontalMidlineConfirm = useCallback(({ file, line, points }) => {
     setImages(prev => ({
       ...prev,
-      frontal: annotatedFile,        // with midline → slide 3
-      frontal_plain: originalFile,   // original → composite (no midline)
+      frontal: file,        // slayt 3 — orta hat slayta düzenlenebilir çizgi olarak eklenir
+      frontal_plain: file,  // kompozit (çizgisiz)
     }))
+    setSlotAnnotation('frontal', line, line ? { points } : null)
     setPendingAnnotation(null)
-  }, [])
+  }, [setSlotAnnotation])
 
-  const handlePupilConfirm = useCallback((annotatedFile, ph109, originalFile, midlineX) => {
+  const handlePupilConfirm = useCallback(({ file, ph109, line, points }) => {
     setImages(prev => ({
       ...prev,
-      frontal_smile: annotatedFile,          // with midline → slide 4
-      frontal_smile_plain: originalFile,     // original → composite slide (no midline)
+      frontal_smile: file,        // slayt 4 — orta hat slayta düzenlenebilir çizgi olarak eklenir
+      frontal_smile_plain: file,  // kompozit (çizgisiz)
     }))
-    if (ph109) setAnnotationAnswers(prev => ({ ...prev, ph109 }))
-    if (midlineX !== null && midlineX !== undefined) setFrontalMidlineX(midlineX)
+    setAnnotationAnswers(prev => {
+      const n = { ...prev }
+      if (ph109) n.ph109 = ph109; else delete n.ph109
+      return n
+    })
+    setSlotAnnotation('frontal_smile', line, { points, ph109 })
     setPendingAnnotation(null)
-  }, [])
+  }, [setSlotAnnotation])
+
+  // Grid'deki ✎ butonu: çizgiyi/noktaları sonradan yeniden düzenle
+  const handleEditLine = useCallback((slotKey) => {
+    const imgs = imagesRef.current
+    if (slotKey === 'frontal' && imgs.frontal) {
+      setPendingAnnotation({ type: 'frontal_midline', file: imgs.frontal, edit: lineEdits.frontal })
+    } else if (slotKey === 'frontal_smile' && imgs.frontal_smile) {
+      setPendingAnnotation({ type: 'pupil', file: imgs.frontal_smile, edit: lineEdits.frontal_smile })
+    } else if (slotKey === 'cephalometric' && imgs.cephalometric_crop) {
+      setPendingAnnotation({ type: 'line', file: imgs.cephalometric_crop, edit: lineEdits.cephalometric_line })
+    }
+  }, [lineEdits])
 
   const handleCropConfirm = useCallback((originalFile, croppedFile) => {
     setImages(prev => ({
@@ -212,14 +261,16 @@ function App() {
     setPendingAnnotation({ type: 'line', file: croppedFile })
   }, [])
 
-  const handleLineMarkConfirm = useCallback((lineFile) => {
-    setImages(prev => ({ ...prev, cephalometric_line: lineFile }))
+  const handleLineMarkConfirm = useCallback(({ file, line, points }) => {
+    setImages(prev => ({ ...prev, cephalometric_line: file }))
+    setSlotAnnotation('cephalometric_line', line, { points })
     setPendingAnnotation(null)
-  }, [])
+  }, [setSlotAnnotation])
 
-  const handleQuestionConfirm = useCallback((answers, burnedFile) => {
+  const handleQuestionConfirm = useCallback((answers, cleanFile, line) => {
     const { slotKey, file } = pendingAnnotation
-    setImages(prev => ({ ...prev, [slotKey]: burnedFile || file }))
+    setImages(prev => ({ ...prev, [slotKey]: cleanFile || file }))
+    if (slotKey === 'intraoral_frontal') setSlotAnnotation(slotKey, line, null)
 
     const final = { ...answers }
 
@@ -264,7 +315,39 @@ function App() {
 
     setAnnotationAnswers(prev => ({ ...prev, ...final }))
     setPendingAnnotation(null)
-  }, [pendingAnnotation])
+  }, [pendingAnnotation, setSlotAnnotation])
+
+  // ── Diagnosis & Problem List: kullanıcı düzenleyene kadar otomatik doldur ──
+  const ph101 = annotationAnswers.ph101, ph103 = annotationAnswers.ph103
+  const fetchProblemList = useCallback(async () => {
+    if (!cephData) return null
+    try {
+      const res = await axios.post(`${API_BASE}/problem-list`, {
+        ceph_data: cephData, patient_info: { ph101, ph103 },
+      })
+      return res.data.items || []
+    } catch {
+      return null
+    }
+  }, [cephData, ph101, ph103])
+
+  useEffect(() => {
+    if (problemListEdited) return
+    let cancelled = false
+    fetchProblemList().then(items => { if (!cancelled && items) setProblemList(items) })
+    return () => { cancelled = true }
+  }, [fetchProblemList, problemListEdited])
+
+  const handleProblemListChange = useCallback((items) => {
+    setProblemList(items)
+    setProblemListEdited(true)
+  }, [])
+
+  const handleProblemListReset = useCallback(async () => {
+    const items = await fetchProblemList()
+    if (items) setProblemList(items)
+    setProblemListEdited(false)
+  }, [fetchProblemList])
 
   const handleAnnotationCancel = useCallback(() => setPendingAnnotation(null), [])
 
@@ -280,8 +363,12 @@ function App() {
       const mo = parseInt(finalPatientInfo.age_month) || 0
       finalPatientInfo.age = mo > 0 ? `${yr} yıl ${mo} ay` : `${yr} yıl`
     }
+    if (problemList) finalPatientInfo.problem_list = problemList.map(t => t.trim()).filter(Boolean)
     formData.append('patient_info', JSON.stringify(finalPatientInfo))
     Object.entries(images).forEach(([key, file]) => formData.append(key, file))
+    // Sadece yüklü fotoğraflara ait çizgiler
+    const activeAnnotations = Object.fromEntries(Object.entries(annotations).filter(([k]) => images[k]))
+    formData.append('annotations', JSON.stringify(activeAnnotations))
     if (closingVideo) formData.append('closing_video', closingVideo)
     try {
       const res  = await axios.post(`${API_BASE}/generate-pptx`, formData, { responseType: 'blob', timeout: 180000 })
@@ -297,21 +384,25 @@ function App() {
     } finally {
       setIsGenerating(false)
     }
-  }, [cephData, patientInfo, annotationAnswers, images])
+  }, [cephData, patientInfo, annotationAnswers, images, annotations, problemList, closingVideo])
 
   return (
     <div className="min-h-screen p-4 md:p-6">
       {pendingAnnotation?.type === 'frontal_midline' && (
-        <PupilLineModal file={pendingAnnotation.file} midlineOnly onConfirm={handleFrontalMidlineConfirm} onCancel={handleAnnotationCancel} />
+        <PupilLineModal file={pendingAnnotation.file} midlineOnly initialPoints={pendingAnnotation.edit?.points}
+          onConfirm={handleFrontalMidlineConfirm} onCancel={handleAnnotationCancel} />
       )}
       {pendingAnnotation?.type === 'pupil' && (
-        <PupilLineModal file={pendingAnnotation.file} onConfirm={handlePupilConfirm} onCancel={handleAnnotationCancel} />
+        <PupilLineModal file={pendingAnnotation.file} initialPoints={pendingAnnotation.edit?.points}
+          initialPh109={pendingAnnotation.edit?.ph109 ?? null}
+          onConfirm={handlePupilConfirm} onCancel={handleAnnotationCancel} />
       )}
       {pendingAnnotation?.type === 'crop' && (
         <CropModal file={pendingAnnotation.file} onConfirm={handleCropConfirm} onCancel={handleAnnotationCancel} />
       )}
       {pendingAnnotation?.type === 'line' && (
-        <LineMarkModal file={pendingAnnotation.file} onConfirm={handleLineMarkConfirm} onCancel={handleAnnotationCancel} />
+        <LineMarkModal file={pendingAnnotation.file} initialPoints={pendingAnnotation.edit?.points}
+          onConfirm={handleLineMarkConfirm} onCancel={handleAnnotationCancel} />
       )}
       {pendingAnnotation?.type === 'question' && (
         <PhotoQuestionModal
@@ -342,8 +433,16 @@ function App() {
       <div style={{ maxWidth: '1600px', margin: '20px auto 0' }}>
         <ExcelUpload onUpload={handleExcelUpload} isLoading={isLoading} />
         <div className="mt-5">
-          <ImageGrid images={images} onImageDrop={handleImageDrop} onImageRemove={handleImageRemove} onImageRotate={handleImageRotate} onReset={handleImageReset} />
+          <ImageGrid images={images} annotations={annotations} onImageDrop={handleImageDrop} onImageRemove={handleImageRemove}
+            onImageRotate={handleImageRotate} onReset={handleImageReset}
+            onEditLine={handleEditLine} editableSlots={EDITABLE_LINE_SLOTS.filter(k => k === 'cephalometric' ? images.cephalometric_crop : images[k])} />
         </div>
+        {cephData && problemList && (
+          <div className="mt-5">
+            <ProblemListEditor items={problemList} edited={problemListEdited}
+              onChange={handleProblemListChange} onReset={handleProblemListReset} />
+          </div>
+        )}
       </div>
 
       {/* Kapanış Video */}

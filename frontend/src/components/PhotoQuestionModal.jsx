@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
+import { encodeImage, MIDLINE_STYLE } from '../lib/annotation'
 
 const MM_OPTIONS = ['0', '0.5', '1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5']
 const MAG_SIZE   = 140
@@ -259,6 +260,54 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
   const [teethSelections, setTeethSelections] = useState({})
   const [mousePos, setMousePos]           = useState(null)  // { cx, cy, clientX, clientY, src:'main'|'ref' }
   const [midlineX, setMidlineX]           = useState(null)  // null = not set, number = fraction 0-1
+  const [draggingMidline, setDraggingMidline] = useState(false)
+  const [rotated, setRotated]             = useState(false)
+  // Sürükleme sırasında re-render yok: çizgi DOM'da doğrudan kaydırılır, bırakınca state'e yazılır
+  const midlineElRef = useRef(null)
+  const midlineDragX = useRef(null)
+  const midlineRaf   = useRef(0)
+  const draggingRef  = useRef(false)
+
+  const moveMidlineTo = (x) => {
+    midlineDragX.current = Math.max(0, Math.min(1, x))
+    if (midlineRaf.current) return
+    midlineRaf.current = requestAnimationFrame(() => {
+      midlineRaf.current = 0
+      if (midlineElRef.current) midlineElRef.current.style.left = `${midlineDragX.current * 100}%`
+    })
+  }
+  const midlinePointer = {
+    onPointerDown: (e) => {
+      if (e.button !== 0) return
+      e.preventDefault()
+      const rect = e.currentTarget.getBoundingClientRect()
+      const x = (e.clientX - rect.left) / rect.width
+      if (midlineX === null) setMidlineX(Math.max(0, Math.min(1, x)))
+      try { e.currentTarget.setPointerCapture(e.pointerId) } catch { /* yakalama yoksa da sürükleme sürer */ }
+      e.currentTarget.focus({ preventScroll: true })
+      draggingRef.current = true
+      setDraggingMidline(true)
+      moveMidlineTo(x)
+    },
+    onPointerMove: (e) => {
+      if (!draggingRef.current) return
+      const rect = e.currentTarget.getBoundingClientRect()
+      moveMidlineTo((e.clientX - rect.left) / rect.width)
+    },
+    onPointerUp: (e) => {
+      if (!draggingRef.current) return
+      draggingRef.current = false
+      try { e.currentTarget.releasePointerCapture(e.pointerId) } catch { /* yok say */ }
+      setDraggingMidline(false)
+      setMidlineX(midlineDragX.current)
+    },
+    onKeyDown: (e) => {
+      if (midlineX === null || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return
+      e.preventDefault()
+      const step = (e.shiftKey ? 10 : 1) / (dispW || 1)
+      setMidlineX(x => Math.max(0, Math.min(1, x + (e.key === 'ArrowLeft' ? -step : step))))
+    },
+  }
 
   // Load main image
   useEffect(() => {
@@ -348,6 +397,8 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
     rctx.rotate(Math.PI / 2)
     rctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2)
     setImgSrc(rc.toDataURL('image/jpeg', 0.95))
+    setRotated(true)
+    setMidlineX(null)
     setDispW(0); setDispH(0)
     setMousePos(null)
   }, [])
@@ -355,29 +406,16 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
   const setAnswer = (ph, val) => setSimpleAnswers(prev => ({ ...prev, [ph]: val }))
   const setTeethSelection = (ph, teeth) => setTeethSelections(prev => ({ ...prev, [ph]: teeth }))
 
-  const confirmWithBurn = useCallback((answers) => {
-    // Compute loaded inline — avoids any const TDZ risk in dep array
-    if (showMidlineMark && midlineX !== null && imgRef.current && dispW > 0 && dispH > 0) {
-      const img = imgRef.current
-      const natW = img.naturalWidth, natH = img.naturalHeight
-      const fc = document.createElement('canvas')
-      fc.width = natW; fc.height = natH
-      const ctx = fc.getContext('2d')
-      ctx.drawImage(img, 0, 0, natW, natH)
-      ctx.beginPath()
-      ctx.moveTo(midlineX * natW, 0)
-      ctx.lineTo(midlineX * natW, natH)
-      ctx.strokeStyle = '#3B82F6'
-      ctx.lineWidth = Math.max(1.5, natW / dispW * 1.5)
-      ctx.stroke()
-      fc.toBlob(blob => {
-        const burnedFile = new File([blob], file.name.replace(/\.[^.]+$/, '') + '_midline.jpg', { type: 'image/jpeg' })
-        onConfirm(answers, burnedFile)
-      }, 'image/jpeg', 0.95)
-    } else {
-      onConfirm(answers, null)
-    }
-  }, [showMidlineMark, midlineX, imgRef, dispW, dispH, file, onConfirm])
+  const confirmWithBurn = useCallback(async (answers) => {
+    // Orta hat artık fotoğrafa gömülmüyor; slayta düzenlenebilir çizgi olarak eklenir
+    const line = showMidlineMark && midlineX !== null
+      ? { x1: midlineX, y1: 0, x2: midlineX, y2: 1, ...MIDLINE_STYLE }
+      : null
+    const cleanFile = rotated && imgRef.current
+      ? await encodeImage(imgRef.current, file.name.replace(/\.[^.]+$/, '') + '.jpg')
+      : null
+    onConfirm(answers, cleanFile, line)
+  }, [showMidlineMark, midlineX, rotated, file, onConfirm])
 
   // `loaded` only used in JSX — defined AFTER all useCallback calls (no TDZ risk)
   const loaded = dispW > 0 && dispH > 0
@@ -521,7 +559,7 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
           <div style={{ position: 'relative', flexShrink: 0 }}>
             {showMidlineMark && loaded && (
               <div style={{ textAlign: 'center', marginBottom: 4, fontSize: 10, color: 'rgba(96,165,250,0.7)', fontWeight: 600 }}>
-                {midlineX === null ? 'Orta hattı işaretlemek için fotoğrafa tıklayın' : 'Orta hat işaretlendi — yeniden konumlandırmak için tekrar tıklayın'}
+                {midlineX === null ? 'Orta hattı işaretlemek için fotoğrafa tıklayın' : 'Orta hat işaretlendi — sürükleyerek kaydırın · ince ayar: ← → (Shift ile 10 px)'}
               </div>
             )}
             <div style={{
@@ -530,14 +568,12 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
               width: loaded ? dispW : 360, height: loaded ? dispH : 220,
               background: '#0d0d0d', display: 'flex', alignItems: 'center', justifyContent: 'center',
               position: 'relative',
-              cursor: showMidlineMark && loaded ? 'crosshair' : undefined,
+              cursor: showMidlineMark && loaded ? (draggingMidline ? 'grabbing' : 'ew-resize') : undefined,
+              touchAction: showMidlineMark ? 'none' : undefined, outline: 'none',
             }}
               onMouseMove={loaded ? makeMouseMove('main') : undefined}
               onMouseLeave={loaded ? handleMouseLeave : undefined}
-              onClick={showMidlineMark && loaded ? (e) => {
-                const rect = e.currentTarget.getBoundingClientRect()
-                setMidlineX((e.clientX - rect.left) / rect.width)
-              } : undefined}
+              {...(showMidlineMark && loaded ? { ...midlinePointer, tabIndex: 0 } : {})}
             >
               {!imgSrc && <span style={{ color: '#444', fontSize: 13 }}>Yükleniyor…</span>}
               {imgSrc && (
@@ -546,7 +582,7 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
               )}
               {/* Vertical midline guide — only at clicked position */}
               {showMidlineMark && loaded && midlineX !== null && (
-                <div style={{
+                <div ref={midlineElRef} style={{
                   position: 'absolute', top: 0, left: `${midlineX * 100}%`, width: 1, height: '100%',
                   background: 'rgba(59,130,246,0.75)', pointerEvents: 'none',
                   boxShadow: '0 0 8px rgba(59,130,246,0.6)',

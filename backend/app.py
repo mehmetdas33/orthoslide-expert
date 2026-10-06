@@ -16,8 +16,8 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 
 from excel_parser import parse_excel, parse_patient_info
-from ceph_logic import evaluate_values, generate_diagnosis, REFERENCE_RANGES, EXCEL_ROW_MAP
-from pptx_engine import generate_pptx, inspect_template
+from ceph_logic import evaluate_values, generate_diagnosis, round_for_display, REFERENCE_RANGES, EXCEL_ROW_MAP
+from pptx_engine import generate_pptx, inspect_template, default_problem_list
 
 _bundle = os.environ.get('ORTHO_BUNDLE_DIR')  # set by launcher.py when frozen
 _exe    = os.environ.get('ORTHO_EXE_DIR')
@@ -98,8 +98,18 @@ def parse_excel_endpoint():
 
     try:
         # Parse data
-        raw_data = parse_excel(filepath)
+        report = {}
+        raw_data = parse_excel(filepath, report)
         patient_info = parse_patient_info(filepath)
+
+        warnings = []
+        if len(report.get("missing", [])) == len(raw_data):
+            warnings.append("Dosyada ölçüm bulunamadı")
+        else:
+            if report.get("method") == "position":
+                warnings.append("Ölçüm etiketleri tanınmadı, satır sırasına göre okundu — değerleri kontrol edin")
+            if report.get("missing"):
+                warnings.append("Bulunamayan ölçümler: " + ", ".join(report["missing"]))
 
         # Evaluate values against reference ranges
         evaluated = evaluate_values(raw_data)
@@ -114,6 +124,7 @@ def parse_excel_endpoint():
             "raw_data": {k: v for k, v in raw_data.items() if v is not None},
             "evaluated": evaluated,
             "diagnosis": diagnosis,
+            "warnings": warnings,
         })
     except Exception as e:
         return jsonify({"error": f"Failed to parse Excel: {str(e)}"}), 500
@@ -137,10 +148,12 @@ def generate_pptx_endpoint():
     # Parse ceph data from form
     ceph_data_str = request.form.get("ceph_data", "{}")
     patient_info_str = request.form.get("patient_info", "{}")
+    annotations_str = request.form.get("annotations", "{}")
 
     try:
         ceph_data = json.loads(ceph_data_str)
         patient_info = json.loads(patient_info_str)
+        annotations = json.loads(annotations_str) or {}
     except json.JSONDecodeError:
         return jsonify({"error": "Invalid JSON in form data"}), 400
 
@@ -177,6 +190,7 @@ def generate_pptx_endpoint():
             image_paths=image_paths,
             closing_video_path=closing_video_path,
             pa_film_path=image_paths.get('pa_film'),
+            annotations=annotations,
         )
         return send_file(
             output_path,
@@ -190,6 +204,15 @@ def generate_pptx_endpoint():
         # Clean up session images
         if os.path.exists(session_dir):
             shutil.rmtree(session_dir, ignore_errors=True)
+
+
+@app.route("/api/problem-list", methods=["POST"])
+def problem_list_endpoint():
+    """Automatic Diagnosis & Problem List items for the in-app editor."""
+    body = request.get_json(silent=True) or {}
+    ceph_data = round_for_display(body.get("ceph_data") or {})
+    items = default_problem_list(ceph_data, body.get("patient_info") or {})
+    return jsonify({"items": items})
 
 
 @app.route("/api/convert-xls", methods=["POST"])

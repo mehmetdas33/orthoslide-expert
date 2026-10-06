@@ -6,13 +6,17 @@ Opens sunum.pptx template, replaces text placeholders with cephalometric
 values, and inserts clinical images into specific slide placeholders.
 """
 import os
+import re
 import copy
 from pptx import Presentation
 from pptx.util import Inches, Emu, Pt
 from pptx.enum.text import PP_ALIGN
+from pptx.enum.shapes import MSO_CONNECTOR
+from pptx.dml.color import RGBColor
 from PIL import Image
 
 from ceph_logic import (
+    round_for_display,
     REFERENCE_RANGES,
     EXCEL_ROW_MAP,
     evaluate_values,
@@ -151,12 +155,13 @@ def insert_image_to_placeholder(slide, placeholder_idx, image_path, match_top=No
 
             sp = placeholder._element
             sp.getparent().remove(sp)
-            slide.shapes.add_picture(temp_path, display_left, display_top, display_w, display_h)
+            pic = slide.shapes.add_picture(temp_path, display_left, display_top, display_w, display_h)
             try:
                 os.remove(temp_path)
             except OSError:
                 pass
-            return True
+            return {"picture": pic, "left": display_left, "top": display_top, "width": display_w, "height": display_h,
+                    "crop": (0.0, 0.0, 1.0, 1.0)}
         else:
             # cover: center-crop to fill placeholder
             img_ratio = img_w / img_h
@@ -165,10 +170,12 @@ def insert_image_to_placeholder(slide, placeholder_idx, image_path, match_top=No
                 new_w = int(img_h * ph_ratio)
                 left_crop = (img_w - new_w) // 2
                 img = img.crop((left_crop, 0, left_crop + new_w, img_h))
+                crop = (left_crop / img_w, 0.0, new_w / img_w, 1.0)
             else:
                 new_h = int(img_w / ph_ratio)
                 top_crop = (img_h - new_h) // 2
                 img = img.crop((0, top_crop, img_w, top_crop + new_h))
+                crop = (0.0, top_crop / img_h, 1.0, new_h / img_h)
 
         max_dim = 1200
         if img_w > max_dim or img_h > max_dim:
@@ -180,7 +187,7 @@ def insert_image_to_placeholder(slide, placeholder_idx, image_path, match_top=No
     sp = placeholder._element
     sp.getparent().remove(sp)
 
-    slide.shapes.add_picture(
+    pic = slide.shapes.add_picture(
         temp_path,
         left, top,
         width, height
@@ -191,7 +198,80 @@ def insert_image_to_placeholder(slide, placeholder_idx, image_path, match_top=No
     except OSError:
         pass
 
-    return True
+    return {"picture": pic, "left": left, "top": top, "width": width, "height": height, "crop": crop}
+
+
+def _clip_unit_segment(x1, y1, x2, y2):
+    """Liang–Barsky: clip segment to the unit square. Returns None if fully outside."""
+    t0, t1 = 0.0, 1.0
+    dx, dy = x2 - x1, y2 - y1
+    for p, q in ((-dx, x1), (dx, 1 - x1), (-dy, y1), (dy, 1 - y1)):
+        if p == 0:
+            if q < 0:
+                return None
+            continue
+        r = q / p
+        if p < 0:
+            t0 = max(t0, r)
+        else:
+            t1 = min(t1, r)
+        if t0 > t1:
+            return None
+    return (x1 + t0 * dx, y1 + t0 * dy, x1 + t1 * dx, y1 + t1 * dy)
+
+
+def add_line_annotations(slide, geom, lines):
+    """
+    Draw annotation lines (orta hat vb.) as native, editable PowerPoint connectors
+    on top of an inserted picture. Line coordinates are fractions (0-1) of the
+    original image; geom comes from insert_image_to_placeholder (picture rect +
+    the visible crop window of the image).
+    """
+    from pptx.oxml.ns import qn
+
+    cx0, cy0, cw, ch = geom["crop"]
+    added = False
+    for ln in lines:
+        try:
+            u1 = (float(ln["x1"]) - cx0) / cw
+            v1 = (float(ln["y1"]) - cy0) / ch
+            u2 = (float(ln["x2"]) - cx0) / cw
+            v2 = (float(ln["y2"]) - cy0) / ch
+        except (KeyError, TypeError, ValueError, ZeroDivisionError):
+            continue
+        seg = _clip_unit_segment(u1, v1, u2, v2)
+        if seg is None:
+            continue
+        a, b, c, d = seg
+        conn = slide.shapes.add_connector(
+            MSO_CONNECTOR.STRAIGHT,
+            Emu(int(geom["left"] + a * geom["width"])), Emu(int(geom["top"] + b * geom["height"])),
+            Emu(int(geom["left"] + c * geom["width"])), Emu(int(geom["top"] + d * geom["height"])),
+        )
+        conn.name = ln.get("name") or "Orta Hat"
+        color = str(ln.get("color") or "#3B82F6").lstrip("#")
+        try:
+            conn.line.color.rgb = RGBColor.from_string(color.upper())
+        except ValueError:
+            conn.line.color.rgb = RGBColor(0x3B, 0x82, 0xF6)
+        conn.line.width = Pt(float(ln.get("width_pt") or 1.25))
+        # Tema stilini kaldır: PowerPoint'te gölge/efekt eklemesin, kendi rengi/kalınlığı geçerli olsun
+        style = conn._element.find(qn("p:style"))
+        if style is not None:
+            conn._element.remove(style)
+        added = True
+
+    # Çizginin altındaki fotoğrafı kilitle: PowerPoint'te çizgiyi tutup kaydırırken
+    # yanlışlıkla fotoğraf kaymasın (sağ tık → Kilidi Aç ile açılabilir)
+    pic = geom.get("picture")
+    if added and pic is not None:
+        cNvPicPr = pic._element.find(qn("p:nvPicPr")).find(qn("p:cNvPicPr"))
+        locks = cNvPicPr.find(qn("a:picLocks"))
+        if locks is None:
+            from lxml import etree
+            locks = etree.SubElement(cNvPicPr, qn("a:picLocks"))
+        for attr in ("noMove", "noResize", "noRot", "noChangeAspect", "noCrop"):
+            locks.set(attr, "1")
 
 
 def replace_textbox_content(slide, shape_name, new_text):
@@ -230,13 +310,16 @@ def find_and_replace_text(presentation, find_text, replace_text, status="normal"
     elif status == "low":
         color = RGBColor(0, 112, 192)
 
+    # Tam eşleşme: "Placeholder 2" aranırken "Placeholder 25" içinde eşleşmesin
+    # (eskiden eksik PH25 kalınca "Placeholder 2" → "78" yazılıp "785" çıkıyordu)
+    pattern = re.compile(re.escape(find_text) + r"(?!\d)")
     for slide in presentation.slides:
         for shape in slide.shapes:
             if shape.has_text_frame:
                 for paragraph in shape.text_frame.paragraphs:
                     for run in paragraph.runs:
-                        if find_text in run.text:
-                            run.text = run.text.replace(find_text, str(replace_text))
+                        if pattern.search(run.text):
+                            run.text = pattern.sub(lambda _m: str(replace_text), run.text)
                             if color:
                                 run.font.color.rgb = color
                             if bold:
@@ -249,6 +332,100 @@ def find_and_replace_text(presentation, find_text, replace_text, status="normal"
                                 paragraph.alignment = align
 
 
+def patient_age_years(patient_info):
+    """
+    Yaş (yıl, ondalıklı). Uygulama 'age_year'/'age_month' gönderir; 'age' ise
+    "24 yıl 8 ay" gibi metindir — eskiden float("24 yıl") hata verip yaş hiç okunmuyordu.
+    """
+    import re
+    pi = patient_info or {}
+    try:
+        yr = pi.get("age_year")
+        if yr not in (None, ""):
+            return int(str(yr).strip()) + (int(str(pi.get("age_month") or 0).strip() or 0) / 12)
+    except (ValueError, TypeError):
+        pass
+    m = re.match(r"\s*(\d+(?:[.,]\d+)?)(?:\D+(\d+))?", str(pi.get("age", "")))
+    if not m:
+        return None
+    years = float(m.group(1).replace(",", "."))
+    return years + (int(m.group(2)) / 12 if m.group(2) else 0)
+
+
+PROBLEM_LIST_SLIDE = 18          # 0-based index of "Diagnosis & Problem List"
+_PROBLEM_LIST_BOXES = {"TextBox 3", "TextBox 4", "TextBox 6", "TextBox 7"}
+_PROBLEM_BULLET_RGB = "0BD0D9"   # template'deki turkuaz nokta ikonlarının rengi
+
+
+def _dental_class_text(patient_info):
+    """ph101 / ph103 ('Class II molar & Class I canine relationship') → dental class line."""
+    import re
+    pi = patient_info or {}
+    classes = []
+    for key in ("ph101", "ph103"):
+        m = re.match(r"\s*Class\s+(I{1,3}|No)\s+molar", str(pi.get(key, "")))
+        if m and m.group(1) != "No":
+            classes.append(m.group(1))
+    if not classes:
+        return "Dentally Class II relationship"
+    if len(set(classes)) == 1:
+        return f"Dentally Class {classes[0]} relationship"
+    return f"Dentally Class {classes[0]} (right) & Class {classes[1]} (left) relationship"
+
+
+def default_problem_list(ceph_data, patient_info=None):
+    """Automatic Diagnosis & Problem List items (same order as the old template)."""
+    items = [
+        get_placeholder_38_text(ceph_data),
+        _dental_class_text(patient_info),
+        "Crowding",
+        get_placeholder_40_text(ceph_data),
+        get_placeholder_70_text(ceph_data),
+        get_placeholder_71_text(ceph_data),
+    ]
+    return [t for t in items if t]
+
+
+def fill_problem_list(slide, items):
+    """
+    Rebuild the Diagnosis & Problem List slide as ONE bulleted text body so it can be
+    edited freely in PowerPoint (Enter adds a new bullet, lines reflow). Removes the
+    old floating text boxes and the fixed bullet-dot pictures.
+    """
+    from lxml import etree
+    from pptx.oxml.ns import qn
+
+    body = None
+    for shape in list(slide.shapes):
+        if shape.is_placeholder and shape.placeholder_format.idx == 1:
+            body = shape
+        elif shape.name in _PROBLEM_LIST_BOXES or shape.shape_type == 13:  # 13 = PICTURE
+            shape._element.getparent().remove(shape._element)
+    if body is None:
+        return
+
+    tf = body.text_frame
+    txBody = tf._txBody
+    for p in txBody.findall(qn("a:p")):
+        txBody.remove(p)
+
+    items = [str(t).strip() for t in items if str(t).strip()] or [""]
+    for text in items:
+        p = etree.SubElement(txBody, qn("a:p"))
+        pPr = etree.SubElement(p, qn("a:pPr"), marL="342900", indent="-342900")
+        etree.SubElement(etree.SubElement(pPr, qn("a:spcBef")), qn("a:spcPts"), val="600")
+        etree.SubElement(etree.SubElement(pPr, qn("a:buClr")), qn("a:srgbClr"), val=_PROBLEM_BULLET_RGB)
+        etree.SubElement(pPr, qn("a:buSzPct"), val="100000")
+        etree.SubElement(pPr, qn("a:buFont"), typeface="Arial")
+        etree.SubElement(pPr, qn("a:buChar"), char="\u25CF")
+        r = etree.SubElement(p, qn("a:r"))
+        rPr = etree.SubElement(r, qn("a:rPr"), lang="en-US", sz="2000", b="1", dirty="0")
+        etree.SubElement(rPr, qn("a:latin"), typeface="Arial Rounded MT Bold")
+        etree.SubElement(r, qn("a:t")).text = text
+        endRPr = etree.SubElement(p, qn("a:endParaRPr"), lang="en-US", sz="2000", b="1", dirty="0")
+        etree.SubElement(endRPr, qn("a:latin"), typeface="Arial Rounded MT Bold")
+
+
 def generate_pptx(
     template_path: str,
     output_path: str,
@@ -257,12 +434,15 @@ def generate_pptx(
     image_paths: dict = None,
     closing_video_path=None,
     pa_film_path=None,
+    annotations=None,
 ):
     """
     Generate a completed PPTX from the template.
     """
     prs = Presentation(template_path)
 
+    # Slaytta tam sayı gösterildiği için renk/yorumlar da gösterilen değere göre hesaplanır
+    ceph_data = round_for_display(ceph_data)
     evaluated = evaluate_values(ceph_data)
     diagnosis = generate_diagnosis(ceph_data)
 
@@ -286,6 +466,9 @@ def generate_pptx(
             placeholder_text_map[f"Placeholder {ph_num}"] = {
                 "value": display_val, "status": status, "bold": True
             }
+        else:
+            # Excel'de bulunamayan ölçüm → slaytta boş değil "–" görünsün
+            placeholder_text_map[f"Placeholder {ph_num}"] = {"value": "–", "status": "normal", "bold": True}
 
     # PH3: ANB = SNA − SNB (recalculated; overrides Excel row value)
     _sna_v = ceph_data.get("SNA")
@@ -541,6 +724,16 @@ def generate_pptx(
             font_name=info.get("font_name"),
         )
 
+    # Değer atanmamış kalan "Placeholder N" yazılarını temizle (slaytta ham metin kalmasın)
+    _leftover = re.compile(r"Placeholder \d+")
+    for _slide in prs.slides:
+        for _shape in _slide.shapes:
+            if _shape.has_text_frame:
+                for _para in _shape.text_frame.paragraphs:
+                    for _run in _para.runs:
+                        if _leftover.search(_run.text):
+                            _run.text = _leftover.sub("", _run.text)
+
     # Fix text alignment for patient info boxes on slide 0 (Slayt 1).
     # After placeholder replacement, ensure name/gender/age are left-aligned
     # and word-wrap is on so they don't overflow or appear misaligned.
@@ -577,16 +770,25 @@ def generate_pptx(
                     )
                     if success:
                         print(f"  [OK] Inserted {slot_key} -> Slide {slide_idx}, PH {ph_idx}")
+                        _lines = (annotations or {}).get(slot_key)
+                        if _lines:
+                            add_line_annotations(slide, success, _lines)
                     else:
                         print(f"  [FAIL] Failed to insert {slot_key} -> Slide {slide_idx}, PH {ph_idx}")
 
-    # Move the vertical blue line on Slayt 4 (slide index 3) to top=0
-    # so it spans the full slide height and the photo appears fully centered
-    slide4 = prs.slides[3]
-    for shape in slide4.shapes:
-        if shape.name == "Straight Connector 9":
-            shape.top = 0
-            break
+    # ── Diagnosis & Problem List (Slayt 19, slide index 18) ──────────────────
+    if len(prs.slides) > PROBLEM_LIST_SLIDE:
+        _items = (patient_info or {}).get("problem_list")
+        if not isinstance(_items, list):
+            _items = default_problem_list(ceph_data, patient_info)
+        fill_problem_list(prs.slides[PROBLEM_LIST_SLIDE], _items)
+
+    # Şablondaki boyutsuz (0×0) eski çizgi kalıntılarını sil — görünmezler ama PowerPoint'te
+    # orta hat çizgisini tutmaya çalışırken yanlışlıkla bunlar seçilebiliyor
+    for _slide in prs.slides:
+        for _shape in list(_slide.shapes):
+            if _shape.shape_type == 9 and not _shape.width and not _shape.height:   # 9 = LINE
+                _shape._element.getparent().remove(_shape._element)
 
     # Bring text/title shapes to front on ALL slides so they are never hidden behind
     # inserted images. python-pptx adds pictures at the end of spTree (top of z-order),
@@ -614,12 +816,7 @@ def generate_pptx(
         xml_slides.insert(position, el)
 
     # ── Slayt 20 (1-tabanlı = 0-tabanlı 19): yaşa göre sil veya fotoyu yerleştir ──
-    _patient_age = None
-    if patient_info:
-        try:
-            _patient_age = float(str(patient_info.get("age", "")).strip())
-        except (ValueError, TypeError):
-            pass
+    _patient_age = patient_age_years(patient_info)
 
     AFTER_COMPOSITE = 20  # 0-based index of composite slide
     if _patient_age is not None and len(prs.slides) > 19:

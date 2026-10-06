@@ -2,10 +2,11 @@
 Excel Parser for Cephalometric Data
 OrthoSlide Expert V2
 
-Reads .xlsx file: Column B, starting at Row 3
-Maps row indices to named measurement keys.
+Reads .xlsx measurement exports; values are matched by row label
+(falls back to Column B / Row 3 order when labels are not recognised).
 """
 import os
+import re
 import pandas as pd
 from ceph_logic import EXCEL_ROW_MAP
 
@@ -57,6 +58,10 @@ def _ensure_xlsx(file_path: str) -> str:
                 if len(t0) > 0:
                     val_name = t0.iloc[0, 0]
                     ws.cell(1, 1, str(val_name) if pd.notna(val_name) else '')
+                    if t0.shape[1] >= 4:
+                        val_age = t0.iloc[0, 3]   # '24Y, 7M'
+                        if pd.notna(val_age):
+                            ws.cell(1, 4, str(val_age))
                     if t0.shape[1] >= 5:
                         val_gender = t0.iloc[0, 4]
                         if pd.notna(val_gender):
@@ -113,73 +118,150 @@ def _ensure_xlsx(file_path: str) -> str:
         )
 
 
-def parse_excel(file_path: str) -> dict:
-    """
-    Parse an Excel file and return a dict of measurement_key → value.
+# Ölçüm yazılımının satır etiketleri → ölçüm anahtarı (küçük harf, sadece harf/rakam)
+LABEL_ALIASES = {
+    "SNA":          ["sna"],
+    "SNB":          ["snb"],
+    "ANB":          ["anb"],
+    "N-A":          ["atonperpfh", "atonperp"],
+    "N-Pog":        ["pogtonperpfh", "pogtonperp"],
+    "Wits":         ["witsappraisal", "wits"],
+    "Y-Axis":       ["yaxistosn", "yaxis"],
+    "SN-GoMe":      ["sngome"],
+    "SN-PP":        ["sntomaxillaryplane", "snpp"],
+    "Mx-Md":        ["maxillarymandibularplanesangle"],
+    "FMA":          ["fma"],
+    "N-Me":         ["anteriorfacialheight"],
+    "S-Go":         ["posteriorfacialheight"],
+    "S-Go/N-Me":    ["facialheightratiopfhafh", "facialheightratio"],
+    "ANS-Me":       ["loweranteriorfacialheight"],
+    "Co-A":         ["effectivemiddlefacecoa", "effectivemiddleface"],
+    "Co-Gn":        ["effectivelengthofmandible", "effectivelengthofmandiblecogn"],
+    "S-N":          ["anteriorcranialbaselength", "anteriorcranialbaselengthsn"],
+    "Go-Me":        ["corpuslength", "corpuslengthgome"],
+    "U1-SN":        ["u1tosn"],
+    "U1-PP":        ["u1tomaxillaryplaneangle", "u1tomaxillaryplane"],
+    "U1-NA-mm":     ["u1tonamm"],
+    "U1-NA-deg":    ["u1tonadeg"],
+    "U1-OP":        ["u1touop"],
+    "L1-Apog":      ["l1toapogmm", "l1toapog"],
+    "IMPA":         ["impa"],
+    "L1-NB-mm":     ["l1tonbmm"],
+    "L1-NB-deg":    ["l1tonbdeg"],
+    "L1-OP":        ["l1tolop"],
+    "InterIncisal": ["interincisalangle"],
+    "Nasolabial":   ["nasolabialangle"],
+    "E-Upper":      ["upperliptoeplane"],
+    "E-Lower":      ["lowerliptoeplane"],
+}
+_ALIAS_TO_KEY = {a: k for k, aliases in LABEL_ALIASES.items() for a in aliases}
 
-    Expected layout:
-      - Column A: measurement labels (optional, for reference)
-      - Column B: measurement values
-      - Data starts at Row 3 (0-indexed row 2 in pandas)
-    """
-    file_path = _ensure_xlsx(file_path)
-    df = pd.read_excel(file_path, header=None, engine="openpyxl")
 
+def _norm_label(v) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(v).lower())
+
+
+def _to_number(v):
+    if v is None or (isinstance(v, float) and pd.isna(v)):
+        return None
+    if isinstance(v, (int, float)) and not isinstance(v, bool):
+        return float(v)
+    try:
+        return float(str(v).strip().replace(",", "."))
+    except ValueError:
+        return None
+
+
+def _parse_by_label(df) -> dict:
+    """Etiket hücresini bul, sağındaki ilk sayıyı değer olarak al (format/sıra bağımsız)."""
     data = {}
-    start_row = 2  # Row 3 in Excel (0-indexed)
+    for r in range(len(df)):
+        for c in range(df.shape[1] - 1):
+            key = _ALIAS_TO_KEY.get(_norm_label(df.iat[r, c]))
+            if key is None or key in data:
+                continue
+            val = _to_number(df.iat[r, c + 1])
+            if val is not None:
+                data[key] = val
+    return data
 
+
+def _parse_by_position(df) -> dict:
+    """Eski yöntem: Sütun B, satır 3'ten itibaren EXCEL_ROW_MAP sırası."""
+    data = {}
     for i, key in enumerate(EXCEL_ROW_MAP):
-        row_idx = start_row + i
+        row_idx = 2 + i
         if row_idx < len(df):
-            raw_value = df.iloc[row_idx, 1]  # Column B (index 1)
+            raw_value = df.iloc[row_idx, 1]
             if pd.notna(raw_value):
                 try:
                     data[key] = float(raw_value)
                 except (ValueError, TypeError):
                     data[key] = str(raw_value)
-            else:
-                data[key] = None
-        else:
-            data[key] = None
-
     return data
 
 
-import re
+def parse_excel(file_path: str, report: dict = None) -> dict:
+    """
+    Parse an Excel file and return a dict of measurement_key → value.
+
+    Değerler satır etiketine göre okunur (A sütunu "SNA", "U1 to NA(mm)" … → yanındaki sayı),
+    böylece satır kayması olan / farklı düzendeki dışa aktarımlar yanlış okunmaz.
+    Etiketler tanınmazsa eski satır-sırası yöntemine düşülür ve `report` içinde uyarı verilir.
+    """
+    file_path = _ensure_xlsx(file_path)
+    df = pd.read_excel(file_path, header=None, engine="openpyxl")
+
+    found = _parse_by_label(df)
+    method = "label"
+    if len(found) < len(EXCEL_ROW_MAP) // 2:
+        found = _parse_by_position(df)
+        method = "position"
+
+    data = {key: found.get(key) for key in EXCEL_ROW_MAP}
+    if report is not None:
+        report["method"] = method
+        report["missing"] = [k for k in EXCEL_ROW_MAP if data[k] is None]
+    return data
+
+
+_AGE_RE = re.compile(r"(?<!\d)(\d{1,3})\s*Y\s*,?\s*(\d{1,2})\s*M", re.IGNORECASE)
+
 
 def parse_patient_info(file_path: str) -> dict:
     """
-    Parse patient info from the Excel file.
-    Row 1, Col A (A1): Patient name in 'Surname, Name' format.
-    Row 1, Col E (E1): Gender ('Female' or 'Male').
+    Parse patient info from the first rows of the Excel file.
+    Name: 'Surname, Name(ID)' (A1).  Gender: 'Female'/'Male'.  Age: '24Y, 8M'.
+    Hücre konumuna bağlı değil — ilk iki satırda aranır (farklı dışa aktarım düzenleri için).
     """
     try:
         file_path = _ensure_xlsx(file_path)
-        df = pd.read_excel(file_path, header=None, engine="openpyxl", nrows=2, usecols="A:E")
-        info = {}
-        
-        # A1 is index [0, 0]
-        if len(df) > 0 and pd.notna(df.iloc[0, 0]):
-            raw_name = str(df.iloc[0, 0]).strip()
-            if "," in raw_name:
-                parts = raw_name.split(",", 1)
-                name_str = f"{parts[1].strip()} {parts[0].strip()}"
-            else:
-                name_str = raw_name
-            # Remove anything inside ()
-            name_str = re.sub(r'\(.*?\)', '', name_str).strip()
-            # Clean up extra spaces
-            name_str = re.sub(r'\s+', ' ', name_str)
-            info["patient_name"] = name_str
+        df = pd.read_excel(file_path, header=None, engine="openpyxl", nrows=2)
+        cells = [str(v).strip() for v in df.values.flatten().tolist() if pd.notna(v)]
+        info = {"patient_name": "", "gender": ""}
+
+        # Ad: 'soyad, ad(ID)…' → 'ad soyad'
+        for c in cells:
+            m = re.match(r"^\s*([^,(\d]+),\s*([^,(\d]+)", c)
+            if m:
+                info["patient_name"] = re.sub(r"\s+", " ", f"{m.group(2).strip()} {m.group(1).strip()}")
+                break
         else:
-            info["patient_name"] = ""
-            
-        # E1 is index [0, 4]
-        if df.shape[1] >= 5 and pd.notna(df.iloc[0, 4]):
-            info["gender"] = str(df.iloc[0, 4]).strip()
-        else:
-            info["gender"] = ""
-            
+            if cells:
+                info["patient_name"] = re.sub(r"\s+", " ", re.sub(r"\(.*?\)", "", cells[0])).strip()
+
+        for c in cells:
+            if c.lower() in ("female", "male"):
+                info["gender"] = c.capitalize()
+                break
+
+        for c in cells:
+            m = _AGE_RE.search(c)
+            if m:
+                info["age_year"] = m.group(1)
+                info["age_month"] = str(int(m.group(2)))
+                break
+
         return info
     except Exception as e:
         print(f"Error parsing patient info: {e}")

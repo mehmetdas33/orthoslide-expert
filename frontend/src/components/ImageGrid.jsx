@@ -588,8 +588,9 @@ function BulkUploadPanel({ bulkFiles, onFilesAdded, onFileRemove }) {
 }
 
 // ── Individual slot drop zone ────────────────────────────────────────────────
-function SlotZone({ slot, imageFile, onDrop, onRemove, onBulkDrop, onPreview, onRotate }) {
+function SlotZone({ slot, imageFile, lines, canEditLine, onEditLine, onDrop, onRemove, onBulkDrop, onPreview, onRotate }) {
   const [dragging, setDragging] = useState(false)
+  const [natSize, setNatSize] = useState(null)
   const ref = useRef(null)
   const preview = imageFile ? URL.createObjectURL(imageFile) : null
   const stop = (e) => { e.preventDefault(); e.stopPropagation() }
@@ -646,10 +647,28 @@ function SlotZone({ slot, imageFile, onDrop, onRemove, onBulkDrop, onPreview, on
 
       {preview ? (
         <>
-          <img src={preview} alt={slot.label} className="w-full h-full object-cover" />
+          <img src={preview} alt={slot.label} className="w-full h-full object-cover"
+            onLoad={(e) => setNatSize({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })} />
+          {/* Orta hat önizlemesi — fotoğrafa gömülü değil, slayta ayrı çizgi olarak eklenir */}
+          {lines?.length > 0 && natSize && (
+            <svg className="absolute inset-0 w-full h-full pointer-events-none"
+              viewBox={`0 0 ${natSize.w} ${natSize.h}`} preserveAspectRatio="xMidYMid slice">
+              {lines.map((l, i) => (
+                <line key={i} x1={l.x1 * natSize.w} y1={l.y1 * natSize.h} x2={l.x2 * natSize.w} y2={l.y2 * natSize.h}
+                  stroke={l.color || '#3B82F6'} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+              ))}
+            </svg>
+          )}
           <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors" />
           {/* Action buttons — top-right, always visible */}
           <div className="absolute top-1 right-1 flex gap-1">
+            {canEditLine && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onEditLine(slot.key) }}
+                className="w-5 h-5 rounded-full bg-sky-500/80 hover:bg-sky-400 text-white text-[10px] flex items-center justify-center shadow"
+                title={slot.key === 'cephalometric' ? 'Çizgiyi düzenle' : 'Orta hattı düzenle'}
+              >✎</button>
+            )}
             <button
               onClick={handleRotate}
               className="w-5 h-5 rounded-full bg-blue-600/80 hover:bg-blue-500 text-white text-[10px] flex items-center justify-center shadow"
@@ -780,7 +799,7 @@ function Lightbox({ item, onClose }) {
 }
 
 // ── Main component ───────────────────────────────────────────────────────────
-const ImageGrid = memo(function ImageGrid({ images, onImageDrop, onImageRemove, onImageRotate, onReset }) {
+const ImageGrid = memo(function ImageGrid({ images, annotations, editableSlots, onEditLine, onImageDrop, onImageRemove, onImageRotate, onReset }) {
   const [bulkFiles, setBulkFiles] = useState([])
   const [lightbox, setLightbox] = useState(null)
   const nextId = useRef(0)
@@ -886,6 +905,9 @@ const ImageGrid = memo(function ImageGrid({ images, onImageDrop, onImageRemove, 
               key={slot.key}
               slot={slot}
               imageFile={images[slot.key]}
+              lines={annotations?.[slot.key]}
+              canEditLine={editableSlots?.includes(slot.key)}
+              onEditLine={onEditLine}
               onDrop={handleSlotDrop}
               onRemove={handleSlotRemove}
               onBulkDrop={handleBulkDrop}

@@ -1,4 +1,6 @@
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
+import { lineThroughRect, toNormLine, normPoints, denormPoints, encodeImage, MIDLINE_STYLE } from '../lib/annotation'
+import { usePointEditor, distToLine } from '../lib/usePointEditor'
 
 const MAG_SIZE = 150
 const MAG_ZOOM = 4
@@ -11,39 +13,91 @@ function cupidFoot(p1, p2, p3) {
   return { x: p1.x + t * dx, y: p1.y + t * dy }
 }
 
-function drawMidline(ctx, W, H, pts, scale) {
-  if (pts.length < 2) return
+// Orta hattın geçtiği nokta ve yönü (ekran pikselinde)
+function midlineGeometry(pts, midlineOnly) {
+  if (midlineOnly) return pts.length === 1 ? { o: pts[0], dir: { x: 0, y: 1 } } : null
+  if (pts.length < 2) return null
   const [p1, p2] = pts
-  const dx = p2.x - p1.x, dy = p2.y - p1.y
-  const len = Math.sqrt(dx * dx + dy * dy) || 1
-  const px = -dy / len, py = dx / len
-  const t = Math.max(W, H) * 2
-  let ox, oy
-  if (pts.length === 3) {
-    const foot = cupidFoot(p1, p2, pts[2])
-    ox = foot.x; oy = foot.y
-  } else {
-    ox = (p1.x + p2.x) / 2; oy = (p1.y + p2.y) / 2
-  }
-  ctx.beginPath()
-  ctx.moveTo(ox + px * t, oy + py * t)
-  ctx.lineTo(ox - px * t, oy - py * t)
-  ctx.strokeStyle = '#3B82F6'
-  ctx.lineWidth = 0.75 * scale
-  ctx.stroke()
+  const o = pts.length === 3 ? cupidFoot(p1, p2, pts[2]) : { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 }
+  return { o, dir: { x: -(p2.y - p1.y), y: p2.x - p1.x } }
 }
 
-export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly = false }) {
+const clampPt = (p, W, H) => ({ x: Math.max(0, Math.min(W, p.x)), y: Math.max(0, Math.min(H, p.y)) })
+
+// İşaret çizimi (ana kanvas ve büyüteç için ortak; s = çizgi/nokta ölçeği)
+function makeDraw(midlineOnly) {
+  return (ctx, W, H, pts, active, s = 1) => {
+    const g = midlineGeometry(pts, midlineOnly)
+    if (!midlineOnly && pts.length >= 2) {
+      const [p1, p2] = pts
+      ctx.save()
+      ctx.setLineDash([5 * s, 4 * s])
+      ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y)
+      ctx.strokeStyle = 'rgba(59,130,246,0.45)'; ctx.lineWidth = 1.5 * s; ctx.stroke()
+      if (pts.length === 3) {
+        const foot = cupidFoot(p1, p2, pts[2])
+        ctx.setLineDash([4 * s, 3 * s])
+        ctx.beginPath(); ctx.moveTo(pts[2].x, pts[2].y); ctx.lineTo(foot.x, foot.y)
+        ctx.strokeStyle = 'rgba(251,191,36,0.75)'; ctx.lineWidth = 1 * s; ctx.stroke()
+      }
+      ctx.restore()
+    }
+    if (g) {
+      const ends = lineThroughRect(g.o, g.dir, W, H)
+      if (ends) {
+        ctx.beginPath(); ctx.moveTo(ends[0].x, ends[0].y); ctx.lineTo(ends[1].x, ends[1].y)
+        ctx.strokeStyle = '#3B82F6'; ctx.lineWidth = 1.5 * s; ctx.stroke()
+      }
+    }
+    const colors = ['#3B82F6', '#3B82F6', '#F59E0B']
+    pts.forEach((p, i) => {
+      const r = (i === active ? 9 : 7) * s
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
+      ctx.fillStyle = midlineOnly ? '#3B82F6' : (colors[i] || '#3B82F6')
+      ctx.globalAlpha = i === active ? 0.75 : 1
+      ctx.fill(); ctx.globalAlpha = 1
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 2 * s; ctx.stroke()
+      if (!midlineOnly) {
+        ctx.fillStyle = 'white'; ctx.font = `bold ${11 * s}px sans-serif`
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'
+        ctx.fillText(String(i + 1), p.x, p.y)
+      }
+    })
+  }
+}
+
+export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly = false, initialPoints = null, initialPh109 = null }) {
   const imgRef       = useRef(null)
   const canvasRef    = useRef(null)
   const magCanvasRef = useRef(null)
-  const [points, setPoints]   = useState([])
   const [imgSrc, setImgSrc]   = useState(null)
   const [dispW, setDispW]     = useState(0)
   const [dispH, setDispH]     = useState(0)
-  const [ph109, setPh109]     = useState(null)
+  const [ph109, setPh109]     = useState(initialPh109)
+  const [rotated, setRotated] = useState(false)
+  const initApplied = useRef(false)
   const [saving, setSaving]   = useState(false)
-  const [mousePos, setMousePos] = useState(null)
+
+  const draw = useMemo(() => makeDraw(midlineOnly), [midlineOnly])
+  // Çizginin kendisinden tutup kaydırma
+  const lineHit = useCallback((p, pts, tol) => {
+    const g = midlineGeometry(pts, midlineOnly)
+    return !!g && distToLine(p, g.o, g.dir) <= tol
+  }, [midlineOnly])
+  const dragLine = useCallback((start, dx, dy, W, H) => {
+    if (midlineOnly) return start.map(q => clampPt({ x: q.x + dx, y: q.y + dy }, W, H))
+    // 3 nokta: Cupid's bow'u kaydır (orta hat paralel kayar); 2 nokta: ikisini birlikte
+    if (start.length === 3) return [start[0], start[1], clampPt({ x: start[2].x + dx, y: start[2].y + dy }, W, H)]
+    return start.map(q => clampPt({ x: q.x + dx, y: q.y + dy }, W, H))
+  }, [midlineOnly])
+  const magnifier = useMemo(() => ({ ref: magCanvasRef, imgRef, size: MAG_SIZE, zoom: MAG_ZOOM, color: 'rgba(59,130,246,0.9)' }), [])
+
+  const { points, setPoints, showMagnifier, handlers } = usePointEditor({
+    canvasRef, dispW, dispH,
+    maxPoints: midlineOnly ? 1 : 3,
+    replaceWhenFull: midlineOnly,
+    draw, lineHit, dragLine, magnifier,
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -58,151 +112,15 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
     const maxW = Math.min(window.innerWidth  * 0.80, 860)
     const maxH = window.innerHeight * 0.50
     const s    = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1)
-    setDispW(Math.round(img.naturalWidth  * s))
-    setDispH(Math.round(img.naturalHeight * s))
+    const w = Math.round(img.naturalWidth  * s), h = Math.round(img.naturalHeight * s)
+    setDispW(w)
+    setDispH(h)
+    // Daha önce işaretlenmiş noktalarla aç (yeniden düzenleme)
+    if (!initApplied.current && initialPoints?.length) {
+      initApplied.current = true
+      setPoints(denormPoints(initialPoints, w, h))
+    }
   }
-
-  // Redraw annotation canvas
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas || !dispW || !dispH) return
-    canvas.width  = dispW
-    canvas.height = dispH
-    const ctx = canvas.getContext('2d')
-    ctx.clearRect(0, 0, dispW, dispH)
-
-    if (midlineOnly) {
-      if (points.length === 1) {
-        // Vertical midline at clicked x
-        ctx.beginPath()
-        ctx.moveTo(points[0].x, 0)
-        ctx.lineTo(points[0].x, dispH)
-        ctx.strokeStyle = '#3B82F6'
-        ctx.lineWidth = 1.5
-        ctx.stroke()
-        // Small dot marker
-        ctx.beginPath()
-        ctx.arc(points[0].x, points[0].y, 6, 0, Math.PI * 2)
-        ctx.fillStyle = '#3B82F6'
-        ctx.fill()
-        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-        ctx.lineWidth = 2
-        ctx.stroke()
-      }
-    } else {
-      if (points.length >= 2) {
-        const [p1, p2] = points
-        // Dashed pupil reference line
-        ctx.save()
-        ctx.setLineDash([5, 4])
-        ctx.beginPath()
-        ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y)
-        ctx.strokeStyle = 'rgba(59,130,246,0.45)'
-        ctx.lineWidth = 1.5
-        ctx.stroke()
-        ctx.restore()
-
-        if (points.length === 3) {
-          const p3  = points[2]
-          const foot = cupidFoot(p1, p2, p3)
-          // Yellow dashed helper: Cupid's bow → foot
-          ctx.save()
-          ctx.setLineDash([4, 3])
-          ctx.beginPath()
-          ctx.moveTo(p3.x, p3.y); ctx.lineTo(foot.x, foot.y)
-          ctx.strokeStyle = 'rgba(251,191,36,0.75)'
-          ctx.lineWidth = 1
-          ctx.stroke()
-          ctx.restore()
-        }
-
-        drawMidline(ctx, dispW, dispH, points, 1)
-      }
-
-      // Point markers
-      const colors = ['#3B82F6', '#3B82F6', '#F59E0B']
-      points.forEach((p, i) => {
-        ctx.beginPath()
-        ctx.arc(p.x, p.y, 7, 0, Math.PI * 2)
-        ctx.fillStyle = colors[i] || '#3B82F6'
-        ctx.fill()
-        ctx.strokeStyle = 'rgba(255,255,255,0.95)'
-        ctx.lineWidth = 2
-        ctx.stroke()
-        ctx.fillStyle = 'white'
-        ctx.font = 'bold 11px sans-serif'
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(String(i + 1), p.x, p.y)
-      })
-    }
-  }, [points, dispW, dispH, midlineOnly])
-
-  // Magnifier
-  useEffect(() => {
-    const magCanvas = magCanvasRef.current
-    const img = imgRef.current
-    if (!magCanvas || !img || !mousePos || !dispW || !dispH) return
-    const sX = img.naturalWidth / dispW
-    const sY = img.naturalHeight / dispH
-    magCanvas.width  = MAG_SIZE
-    magCanvas.height = MAG_SIZE
-    const ctx = magCanvas.getContext('2d')
-    const srcW = (MAG_SIZE / MAG_ZOOM) * sX
-    const srcH = (MAG_SIZE / MAG_ZOOM) * sY
-    const srcX = Math.max(0, Math.min(mousePos.cx * sX - srcW / 2, img.naturalWidth  - srcW))
-    const srcY = Math.max(0, Math.min(mousePos.cy * sY - srcH / 2, img.naturalHeight - srcH))
-    ctx.save()
-    ctx.beginPath()
-    ctx.arc(MAG_SIZE / 2, MAG_SIZE / 2, MAG_SIZE / 2, 0, Math.PI * 2)
-    ctx.clip()
-    ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, MAG_SIZE, MAG_SIZE)
-    ctx.strokeStyle = 'rgba(59,130,246,0.9)'
-    ctx.lineWidth = 1
-    ctx.beginPath()
-    ctx.moveTo(MAG_SIZE / 2, MAG_SIZE / 2 - 10); ctx.lineTo(MAG_SIZE / 2, MAG_SIZE / 2 + 10)
-    ctx.moveTo(MAG_SIZE / 2 - 10, MAG_SIZE / 2); ctx.lineTo(MAG_SIZE / 2 + 10, MAG_SIZE / 2)
-    ctx.stroke()
-    ctx.restore()
-    ctx.beginPath()
-    ctx.arc(MAG_SIZE / 2, MAG_SIZE / 2, MAG_SIZE / 2 - 1, 0, Math.PI * 2)
-    ctx.strokeStyle = 'rgba(59,130,246,0.7)'
-    ctx.lineWidth = 2
-    ctx.stroke()
-  }, [mousePos, dispW, dispH])
-
-  const handleCanvasClick = useCallback((e) => {
-    const maxPts = midlineOnly ? 1 : 3
-    if (points.length >= maxPts) {
-      if (midlineOnly) {
-        // Allow repositioning by clicking again
-        const canvas = canvasRef.current
-        const rect   = canvas.getBoundingClientRect()
-        const x = (e.clientX - rect.left) * (canvas.width  / rect.width)
-        const y = (e.clientY - rect.top)  * (canvas.height / rect.height)
-        setPoints([{ x, y }])
-      }
-      return
-    }
-    const canvas = canvasRef.current
-    const rect   = canvas.getBoundingClientRect()
-    const x = (e.clientX - rect.left) * (canvas.width  / rect.width)
-    const y = (e.clientY - rect.top)  * (canvas.height / rect.height)
-    setPoints(prev => [...prev, { x, y }])
-  }, [points.length, midlineOnly])
-
-  const handleMouseMove = useCallback((e) => {
-    const maxPts = midlineOnly ? 1 : 3
-    if (points.length >= maxPts && !midlineOnly) { setMousePos(null); return }
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    const cx = (e.clientX - rect.left) * (canvas.width  / rect.width)
-    const cy = (e.clientY - rect.top)  * (canvas.height / rect.height)
-    setMousePos({ cx, cy, clientX: e.clientX, clientY: e.clientY })
-  }, [points.length, midlineOnly])
-
-  const handleMouseLeave = useCallback(() => setMousePos(null), [])
 
   const handleRotate = useCallback(() => {
     const img = imgRef.current
@@ -215,68 +133,40 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
     rctx.rotate(Math.PI / 2)
     rctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2)
     setImgSrc(rc.toDataURL('image/jpeg', 0.95))
+    setRotated(true)
     setDispW(0); setDispH(0)
+    initApplied.current = true
     setPoints([])
-    setMousePos(null)
-  }, [])
+  }, [setPoints])
 
-  const handleConfirm = useCallback(() => {
+  const handleConfirm = useCallback(async () => {
     const img = imgRef.current
     if (!img || !dispW || saving) return
     setSaving(true)
-    const natW = img.naturalWidth, natH = img.naturalHeight
-    const sX = natW / dispW, sY = natH / dispH
-    const fc  = document.createElement('canvas')
-    fc.width  = natW; fc.height = natH
-    const ctx = fc.getContext('2d')
-    ctx.drawImage(img, 0, 0, natW, natH)
-
-    let midlineFraction = null
-
-    if (midlineOnly) {
-      if (points.length === 1) {
-        const nx = points[0].x * sX
-        ctx.beginPath()
-        ctx.moveTo(nx, 0)
-        ctx.lineTo(nx, natH)
-        ctx.strokeStyle = '#3B82F6'
-        ctx.lineWidth = 0.75 * (sX + sY) / 2
-        ctx.stroke()
-        midlineFraction = points[0].x / dispW
-      }
-    } else {
-      if (points.length >= 2) {
-        const scaled = points.map(p => ({ x: p.x * sX, y: p.y * sY }))
-        drawMidline(ctx, natW, natH, scaled, (sX + sY) / 2)
-        if (points.length === 3) {
-          const foot = cupidFoot(points[0], points[1], points[2])
-          midlineFraction = foot.x / dispW
-        } else {
-          midlineFraction = (points[0].x + points[1].x) / 2 / dispW
-        }
-      }
-    }
-
-    fc.toBlob(blob => {
-      if (!blob) { setSaving(false); return }
-      const hasMidline = midlineOnly ? points.length === 1 : points.length >= 2
-      const ext  = hasMidline ? '_midline.jpg' : '.jpg'
-      const name = file.name.replace(/\.[^.]+$/, '') + ext
-      onConfirm(new File([blob], name, { type: 'image/jpeg' }), ph109, file, midlineFraction)
-    }, 'image/jpeg', 0.95)
-  }, [points, file, dispW, dispH, ph109, onConfirm, saving, midlineOnly])
+    // Çizgi fotoğrafa gömülmez: temiz görüntü + normalize çizgi → slaytta düzenlenebilir çizgi
+    const g = midlineGeometry(points, midlineOnly)
+    const line = g ? toNormLine(lineThroughRect(g.o, g.dir, dispW, dispH), dispW, dispH, MIDLINE_STYLE) : null
+    const base = file.name.replace(/\.[^.]+$/, '')
+    const cleanFile = rotated ? await encodeImage(img, base + '.jpg') : file
+    if (!cleanFile) { setSaving(false); return }
+    onConfirm({
+      file: cleanFile,
+      ph109,
+      line,
+      points: normPoints(points, dispW, dispH),
+      midlineX: g ? g.o.x / dispW : null,
+    })
+  }, [points, file, dispW, dispH, ph109, onConfirm, saving, midlineOnly, rotated])
 
   // Derived — after all useCallback hooks
   const loaded = dispW > 0 && dispH > 0
   const hint = midlineOnly
-    ? (points.length === 0 ? 'Orta hattı işaretlemek için fotoğrafa tıklayın' : '✓ Orta hat işaretlendi — yeniden konumlandırmak için tekrar tıklayın')
+    ? (points.length === 0 ? 'Orta hattı işaretlemek için fotoğrafa tıklayın' : '✓ Çizgiyi tutup kaydırın · ince ayar: ← → (Shift ile 10 px)')
     : (points.length === 0 ? '1. Sol göz bebeğine tıklayın' :
        points.length === 1 ? '2. Sağ göz bebeğine tıklayın' :
        points.length === 2 ? "3. Cupid's bow noktasına tıklayın" :
-                             "✓ Orta hat hazır — Cupid's bow'dan dik")
+                             "✓ Noktaları veya çizgiyi sürükleyin · ince ayar: ok tuşları (Shift ile 10 px)")
 
-  const magLeft = mousePos ? mousePos.clientX + 20 : 0
-  const magTop  = mousePos ? mousePos.clientY - MAG_SIZE - 10 : 0
 
   return (
     <div style={{
@@ -313,13 +203,10 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
               style={{ display: 'block', width: loaded ? dispW : 0, height: loaded ? dispH : 0 }} />
           )}
           {loaded && (
-            <canvas ref={canvasRef}
-              onClick={handleCanvasClick}
-              onMouseMove={handleMouseMove}
-              onMouseLeave={handleMouseLeave}
+            <canvas ref={canvasRef} {...handlers}
               style={{
                 position: 'absolute', top: 0, left: 0, width: dispW, height: dispH,
-                cursor: points.length < 3 ? 'crosshair' : 'default',
+                cursor: 'crosshair', touchAction: 'none', outline: 'none',
               }} />
           )}
         </div>
@@ -389,9 +276,9 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
       </div>
 
       {/* Magnifier */}
-      {mousePos && loaded && (
+      {loaded && (
         <canvas ref={magCanvasRef} style={{
-          position: 'fixed', left: magLeft, top: Math.max(10, magTop),
+          position: 'fixed', left: -9999, top: 0, display: showMagnifier ? 'block' : 'none',
           width: MAG_SIZE, height: MAG_SIZE, borderRadius: '50%',
           pointerEvents: 'none', zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,0.8)',
         }} />
