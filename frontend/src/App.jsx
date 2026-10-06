@@ -467,6 +467,7 @@ function App() {
             null
           }
           refMidlineX={null}
+          refLine={pendingAnnotation.slotKey === 'intraoral_frontal' ? (annotations.frontal_smile?.[0] || null) : null}
           referenceLabel={
             pendingAnnotation.slotKey === 'upper_occlusal' ? 'Alt Oklüzal' :
             pendingAnnotation.slotKey === 'lower_occlusal' ? 'Üst Oklüzal' :

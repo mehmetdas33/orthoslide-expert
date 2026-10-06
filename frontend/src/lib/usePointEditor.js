@@ -1,4 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
+import { drawMagCrosshair } from './annotation'
 
 const HIT_RADIUS = 16      // nokta yakalama yarıçapı (px)
 const LINE_HIT   = 9       // çizgi yakalama mesafesi (px)
@@ -76,15 +77,9 @@ export function usePointEditor({ canvasRef, dispW, dispH, maxPoints, replaceWhen
     mc.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, size, size)
     // Büyüteçte işaretleri de göster (çizginin tam yerini görmek için)
     mc.translate(size / 2, size / 2); mc.scale(zoom, zoom); mc.translate(-ptr.x, -ptr.y)
-    draw(mc, dispW, dispH, pointsRef.current, -1, 1 / zoom)
+    draw(mc, dispW, dispH, pointsRef.current, -1, 1 / zoom, true)   // inMag: noktalar içi boş halka
     mc.restore()
-    mc.strokeStyle = m.color; mc.lineWidth = 1
-    mc.beginPath()
-    mc.moveTo(size / 2, size / 2 - 10); mc.lineTo(size / 2, size / 2 + 10)
-    mc.moveTo(size / 2 - 10, size / 2); mc.lineTo(size / 2 + 10, size / 2)
-    mc.stroke()
-    mc.beginPath(); mc.arc(size / 2, size / 2, size / 2 - 1, 0, Math.PI * 2)
-    mc.lineWidth = 2; mc.stroke()
+    drawMagCrosshair(mc, size, m.color)
   }, [canvasRef, dispW, dispH, draw, magnifier])
 
   const schedule = useCallback(() => {

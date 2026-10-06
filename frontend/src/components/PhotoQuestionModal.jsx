@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { encodeImage, MIDLINE_STYLE } from '../lib/annotation'
+import { encodeImage, MIDLINE_STYLE, drawMagCrosshair } from '../lib/annotation'
 
 const MM_OPTIONS = ['0', '0.5', '1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5']
 const MAG_SIZE   = 140
@@ -247,7 +247,7 @@ function BoltonQuestion({ answers, setAnswer }) {
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
-export default function PhotoQuestionModal({ file, questions, onConfirm, onCancel, showMidlineMark, referenceImage, referenceLabel, refMidlineX }) {
+export default function PhotoQuestionModal({ file, questions, onConfirm, onCancel, showMidlineMark, referenceImage, referenceLabel, refMidlineX, refLine = null }) {
   const imgRef    = useRef(null)
   const refImgRef = useRef(null)
   const magRef    = useRef(null)
@@ -258,7 +258,11 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
   const [simpleAnswers, setSimpleAnswers] = useState({})
   const [midlineStates, setMidlineStates] = useState({})
   const [teethSelections, setTeethSelections] = useState({})
-  const [mousePos, setMousePos]           = useState(null)  // { cx, cy, clientX, clientY, src:'main'|'ref' }
+  // Büyüteç: imleç ref'te tutulur, rAF ile doğrudan çizilir (her harekette re-render yok)
+  const [magVisible, setMagVisible]       = useState(false)
+  const magPtrRef = useRef(null)    // { src:'main'|'ref', clientX, clientY }
+  const magRafRef = useRef(0)
+  const [refNat, setRefNat]               = useState(null)   // referans görselin doğal boyutu
   const [midlineX, setMidlineX]           = useState(null)  // null = not set, number = fraction 0-1
   const [draggingMidline, setDraggingMidline] = useState(false)
   const [rotated, setRotated]             = useState(false)
@@ -290,6 +294,7 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
       moveMidlineTo(x)
     },
     onPointerMove: (e) => {
+      makeMouseMove('main')(e)   // sürüklerken büyüteç de takip etsin
       if (!draggingRef.current) return
       const rect = e.currentTarget.getBoundingClientRect()
       moveMidlineTo((e.clientX - rect.left) / rect.width)
@@ -336,53 +341,65 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
     setDispH(Math.round(img.naturalHeight * s))
   }
 
-  // Magnifier
-  useEffect(() => {
-    const magCanvas = magRef.current
-    if (!magCanvas || !mousePos) return
-    const isRef = mousePos.src === 'ref'
-    const img   = isRef ? refImgRef.current : imgRef.current
-    if (!img) return
-    const rect  = img.getBoundingClientRect()
-    const dW    = rect.width, dH = rect.height
-    if (!dW || !dH) return
-    const sX = img.naturalWidth  / dW
-    const sY = img.naturalHeight / dH
-    magCanvas.width  = MAG_SIZE
-    magCanvas.height = MAG_SIZE
-    const ctx = magCanvas.getContext('2d')
-    const srcW = (MAG_SIZE / MAG_ZOOM) * sX
-    const srcH = (MAG_SIZE / MAG_ZOOM) * sY
-    const srcX = Math.max(0, Math.min(mousePos.cx * sX - srcW / 2, img.naturalWidth  - srcW))
-    const srcY = Math.max(0, Math.min(mousePos.cy * sY - srcH / 2, img.naturalHeight - srcH))
-    /* dW, dH used above only for guard — sX/sY carry the scale */
+  // Görselin kutu içindeki gerçek içerik alanı (object-fit: contain boşlukları hariç)
+  const contentRect = (img) => {
+    const r = img.getBoundingClientRect()
+    const s = Math.min(r.width / img.naturalWidth, r.height / img.naturalHeight)
+    const w = img.naturalWidth * s, h = img.naturalHeight * s
+    return { left: r.left + (r.width - w) / 2, top: r.top + (r.height - h) / 2, w, h }
+  }
+
+  const paintMagnifier = useCallback(() => {
+    magRafRef.current = 0
+    const mag = magRef.current, ptr = magPtrRef.current
+    if (!mag || !ptr) return
+    const isRef = ptr.src === 'ref'
+    const img = isRef ? refImgRef.current : imgRef.current
+    if (!img || !img.naturalWidth) return
+    const dpr = window.devicePixelRatio || 1
+    if (mag.width !== MAG_SIZE * dpr) { mag.width = MAG_SIZE * dpr; mag.height = MAG_SIZE * dpr }
+    mag.style.left = `${ptr.clientX + 22}px`
+    mag.style.top  = `${Math.max(10, ptr.clientY - MAG_SIZE - 14)}px`
+    const ctx = mag.getContext('2d')
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const cr = contentRect(img)
+    const natPerPx = img.naturalWidth / cr.w
+    // İmlecin altındaki doğal piksel — büyütecin TAM merkezi (kenarlarda kaydırma/kırpma yok)
+    const nx = (ptr.clientX - cr.left) * natPerPx
+    const ny = (ptr.clientY - cr.top)  * natPerPx
+    const srcW = (MAG_SIZE / MAG_ZOOM) * natPerPx
+    const srcX = nx - srcW / 2, srcY = ny - srcW / 2
+    const toMag = (x, y) => [(x - srcX) / srcW * MAG_SIZE, (y - srcY) / srcW * MAG_SIZE]
     ctx.save()
-    ctx.beginPath()
-    ctx.arc(MAG_SIZE / 2, MAG_SIZE / 2, MAG_SIZE / 2, 0, Math.PI * 2)
-    ctx.clip()
-    ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, MAG_SIZE, MAG_SIZE)
-    ctx.strokeStyle = 'rgba(255,255,255,0.5)'
-    ctx.lineWidth = 0.8
-    ctx.beginPath()
-    ctx.moveTo(MAG_SIZE / 2, MAG_SIZE / 2 - 8); ctx.lineTo(MAG_SIZE / 2, MAG_SIZE / 2 + 8)
-    ctx.moveTo(MAG_SIZE / 2 - 8, MAG_SIZE / 2); ctx.lineTo(MAG_SIZE / 2 + 8, MAG_SIZE / 2)
-    ctx.stroke()
+    ctx.beginPath(); ctx.arc(MAG_SIZE / 2, MAG_SIZE / 2, MAG_SIZE / 2, 0, Math.PI * 2); ctx.clip()
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, MAG_SIZE, MAG_SIZE)
+    ctx.drawImage(img, srcX, srcY, srcW, srcW, 0, 0, MAG_SIZE, MAG_SIZE)
+    // Büyüteçte orta hat çizgileri
+    ctx.strokeStyle = 'rgba(59,130,246,0.95)'; ctx.lineWidth = 1.5
+    if (isRef && refLine) {
+      const W = img.naturalWidth, H = img.naturalHeight
+      const [ax, ay] = toMag(refLine.x1 * W, refLine.y1 * H), [bx, by] = toMag(refLine.x2 * W, refLine.y2 * H)
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke()
+    } else if (!isRef && showMidlineMark) {
+      const mx = draggingRef.current ? midlineDragX.current : midlineX
+      if (mx !== null && mx !== undefined) {
+        const [lx] = toMag(mx * img.naturalWidth, 0)
+        ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, MAG_SIZE); ctx.stroke()
+      }
+    }
     ctx.restore()
-    ctx.beginPath()
-    ctx.arc(MAG_SIZE / 2, MAG_SIZE / 2, MAG_SIZE / 2 - 1, 0, Math.PI * 2)
-    ctx.strokeStyle = 'rgba(96,165,250,0.6)'
-    ctx.lineWidth = 2
-    ctx.stroke()
-  }, [mousePos])
+    drawMagCrosshair(ctx, MAG_SIZE, '#38BDF8')
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refLine, showMidlineMark, midlineX])
 
   const makeMouseMove = useCallback((src) => (e) => {
-    const img = src === 'ref' ? refImgRef.current : imgRef.current
-    if (!img) return
-    const rect = img.getBoundingClientRect()
-    setMousePos({ cx: e.clientX - rect.left, cy: e.clientY - rect.top, clientX: e.clientX, clientY: e.clientY, src })
-  }, [])
+    magPtrRef.current = { src, clientX: e.clientX, clientY: e.clientY }
+    if (!magRafRef.current) magRafRef.current = requestAnimationFrame(paintMagnifier)
+  }, [paintMagnifier])
+  const handleMouseEnter = useCallback(() => setMagVisible(true), [])
+  useEffect(() => () => cancelAnimationFrame(magRafRef.current), [])
 
-  const handleMouseLeave = useCallback(() => setMousePos(null), [])
+  const handleMouseLeave = useCallback(() => { setMagVisible(false); magPtrRef.current = null }, [])
 
   const handleRotate = useCallback(() => {
     const img = imgRef.current
@@ -398,7 +415,7 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
     setRotated(true)
     setMidlineX(null)
     setDispW(0); setDispH(0)
-    setMousePos(null)
+    magPtrRef.current = null
   }, [])
 
   const setAnswer = (ph, val) => setSimpleAnswers(prev => ({ ...prev, [ph]: val }))
@@ -447,8 +464,6 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
   const done    = questions.filter(q => q.type !== 'header' && !q.optional && isAnswered(q)).length
   const pct     = total ? Math.round((done / total) * 100) : 100
 
-  const magLeft = mousePos ? mousePos.clientX + 18 : 0
-  const magTop  = mousePos ? mousePos.clientY - MAG_SIZE - 12 : 0
 
   const renderQuestions = () => {
     const out = []
@@ -536,11 +551,22 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
                 background: '#0d0d0d', width: loaded ? dispW : 200, height: loaded ? dispH : 200,
                 cursor: 'crosshair', position: 'relative',
               }}
-                onMouseMove={(e) => makeMouseMove('ref')(e)}
+                onMouseMove={makeMouseMove('ref')}
+                onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
               >
                 <img ref={refImgRef} src={refSrc} alt="referans"
+                  onLoad={(e) => setRefNat({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight })}
                   style={{ display: 'block', width: '100%', height: '100%', objectFit: 'contain' }} />
+                {/* Yüz orta hattı (gülen cephede işaretlenen) — mavi çizgi */}
+                {refLine && refNat && (
+                  <svg viewBox={`0 0 ${refNat.w} ${refNat.h}`} preserveAspectRatio="xMidYMid meet"
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+                    <line x1={refLine.x1 * refNat.w} y1={refLine.y1 * refNat.h} x2={refLine.x2 * refNat.w} y2={refLine.y2 * refNat.h}
+                      stroke="#3B82F6" strokeWidth="2" vectorEffect="non-scaling-stroke"
+                      style={{ filter: 'drop-shadow(0 0 3px rgba(59,130,246,0.8))' }} />
+                  </svg>
+                )}
                 {refMidlineX !== null && refMidlineX !== undefined && (
                   <div style={{
                     position: 'absolute', top: 0, left: `${refMidlineX * 100}%`, width: 2, height: '100%',
@@ -570,6 +596,7 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
               touchAction: showMidlineMark ? 'none' : undefined, outline: 'none',
             }}
               onMouseMove={loaded ? makeMouseMove('main') : undefined}
+              onMouseEnter={loaded ? handleMouseEnter : undefined}
               onMouseLeave={loaded ? handleMouseLeave : undefined}
               {...(showMidlineMark && loaded ? { ...midlinePointer, tabIndex: 0 } : {})}
             >
@@ -654,9 +681,9 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
       </div>
 
       {/* Magnifier */}
-      {mousePos && loaded && (
+      {loaded && (
         <canvas ref={magRef} style={{
-          position: 'fixed', left: magLeft, top: Math.max(10, magTop),
+          position: 'fixed', left: -9999, top: 0, display: magVisible ? 'block' : 'none',
           width: MAG_SIZE, height: MAG_SIZE, borderRadius: '50%',
           pointerEvents: 'none', zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,0.8)',
         }} />

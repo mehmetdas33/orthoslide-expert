@@ -75,7 +75,7 @@ const clampPt = (p, W, H) => ({ x: Math.max(0, Math.min(W, p.x)), y: Math.max(0,
 
 // İşaret çizimi (ana kanvas ve büyüteç için ortak; s = çizgi/nokta ölçeği)
 function makeDraw(anchor, angleRef) {
-  return (ctx, W, H, pts, active, s = 1) => {
+  return (ctx, W, H, pts, active, s = 1, inMag = false) => {
     const g = midlineGeometry(pts, anchor, angleRef.current)
     if (pts.length >= 2) {
       const [p1, p2] = pts
@@ -120,7 +120,7 @@ function makeDraw(anchor, angleRef) {
         }
       }
       // Döndürme tutamacı
-      const h = rotateHandlePos(g, W, H)
+      const h = !inMag && rotateHandlePos(g, W, H)
       if (h) {
         ctx.beginPath(); ctx.arc(h.x, h.y, 8 * s, 0, Math.PI * 2)
         ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fill()
@@ -130,6 +130,14 @@ function makeDraw(anchor, angleRef) {
       }
     }
     const colors = ['#3B82F6', '#3B82F6', '#F59E0B']
+    if (inMag) {
+      // Büyüteçte işaretli yeri kapatmamak için yalnızca ince halka
+      pts.forEach((p, i) => {
+        ctx.beginPath(); ctx.arc(p.x, p.y, 6 * s, 0, Math.PI * 2)
+        ctx.strokeStyle = colors[i] || '#3B82F6'; ctx.lineWidth = 1.5 * s; ctx.stroke()
+      })
+      return
+    }
     pts.forEach((p, i) => {
       const r = (i === active ? 9 : 7) * s
       ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2)
@@ -203,7 +211,7 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
     if (anchor === 'cupid' && start.length === 3) return [start[0], start[1], clampPt({ x: start[2].x + dx, y: start[2].y + dy }, W, H)]
     return start.map((q, i) => (i < 2 ? clampPt({ x: q.x + dx, y: q.y + dy }, W, H) : q))
   }, [anchor])
-  const magnifier = useMemo(() => ({ ref: magCanvasRef, imgRef, size: MAG_SIZE, zoom: MAG_ZOOM, color: 'rgba(59,130,246,0.9)' }), [])
+  const magnifier = useMemo(() => ({ ref: magCanvasRef, imgRef, size: MAG_SIZE, zoom: MAG_ZOOM, color: '#38BDF8' }), [])
 
   const { points, setPoints, showMagnifier, handlers, redraw } = usePointEditor({
     canvasRef, dispW, dispH,

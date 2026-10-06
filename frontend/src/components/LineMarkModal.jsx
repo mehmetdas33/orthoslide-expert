@@ -33,7 +33,7 @@ function lineEndpoints(p1, p2, W, H) {
   return candidates.slice(0, 2)
 }
 
-function drawPreview(ctx, W, H, points, active = -1, s = 1) {
+function drawPreview(ctx, W, H, points, active = -1, s = 1, inMag = false) {
   if (points.length === 2) {
     const ends = lineEndpoints(points[0], points[1], W, H)
     if (ends.length === 2) {
@@ -44,6 +44,14 @@ function drawPreview(ctx, W, H, points, active = -1, s = 1) {
       ctx.lineWidth = 1.5 * s
       ctx.stroke()
     }
+  }
+  if (inMag) {
+    // Büyüteçte işaretli yeri kapatmamak için yalnızca ince halka
+    points.forEach(p => {
+      ctx.beginPath(); ctx.arc(p.x, p.y, 6 * s, 0, Math.PI * 2)
+      ctx.strokeStyle = '#E5E7EB'; ctx.lineWidth = 1.5 * s; ctx.stroke()
+    })
+    return
   }
   points.forEach((p, i) => {
     ctx.beginPath()
@@ -75,7 +83,7 @@ export default function LineMarkModal({ file, onConfirm, onCancel, initialPoints
   const [dispH, setDispH]     = useState(0)
   const [saving, setSaving]   = useState(false)
 
-  const magnifier = useMemo(() => ({ ref: magRef, imgRef, size: MAG_SIZE, zoom: MAG_ZOOM, color: 'rgba(156,163,175,0.8)' }), [])
+  const magnifier = useMemo(() => ({ ref: magRef, imgRef, size: MAG_SIZE, zoom: MAG_ZOOM, color: '#38BDF8' }), [])
   const { points, setPoints, showMagnifier, handlers } = usePointEditor({
     canvasRef, dispW, dispH, maxPoints: 2,
     draw: drawPreview, lineHit, dragLine, magnifier,

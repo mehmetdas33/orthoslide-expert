@@ -60,3 +60,30 @@ export function encodeImage(img, name) {
 
 export const MIDLINE_STYLE = { color: '#3B82F6', width_pt: 1.25, name: 'Orta Hat' }
 export const CEPH_LINE_STYLE = { color: '#888888', width_pt: 1.5, name: 'Sefalometri Çizgisi' }
+
+/**
+ * Büyüteç için net nişangâh: merkezde boşluklu, koyu kenarlıklı artı + tam merkez noktası.
+ * Her zeminde (açık/koyu) görünür; tam olarak işaretlenecek pikseli gösterir.
+ */
+export function drawMagCrosshair(ctx, size, color = '#38BDF8') {
+  const c = size / 2, gap = 5, arm = 18
+  const seg = (x1, y1, x2, y2) => { ctx.moveTo(x1, y1); ctx.lineTo(x2, y2) }
+  const arms = () => {
+    ctx.beginPath()
+    seg(c, c - gap - arm, c, c - gap); seg(c, c + gap, c, c + gap + arm)
+    seg(c - gap - arm, c, c - gap, c); seg(c + gap, c, c + gap + arm, c)
+  }
+  ctx.save()
+  ctx.lineCap = 'round'
+  arms(); ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineWidth = 3.5; ctx.stroke()
+  arms(); ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke()
+  // merkez: koyu halka + parlak nokta
+  ctx.beginPath(); ctx.arc(c, c, 2.6, 0, Math.PI * 2)
+  ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fill()
+  ctx.beginPath(); ctx.arc(c, c, 1.3, 0, Math.PI * 2)
+  ctx.fillStyle = '#ffffff'; ctx.fill()
+  ctx.restore()
+  // dış çerçeve
+  ctx.beginPath(); ctx.arc(c, c, c - 1, 0, Math.PI * 2)
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke()
+}
