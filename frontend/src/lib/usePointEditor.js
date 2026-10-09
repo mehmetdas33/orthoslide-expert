@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { drawMagCrosshair } from './annotation'
+import { paintLoupe, wheelLoupeZoom, stepLoupeZoom } from './loupe'
 
 const HIT_RADIUS = 16      // nokta yakalama yarıçapı (px)
 const LINE_HIT   = 9       // çizgi yakalama mesafesi (px)
@@ -56,30 +56,22 @@ export function usePointEditor({ canvasRef, dispW, dispH, maxPoints, replaceWhen
     ctx.clearRect(0, 0, dispW, dispH)
     draw(ctx, dispW, dispH, pointsRef.current, dragRef.current?.type === 'point' ? dragRef.current.idx : -1)
 
-    // Büyüteç
-    const m = magnifier
+    // Büyüteç (ortak loupe: imlecin üstüne binmez, merkez = imleç pikseli)
     const ptr = pointerRef.current
-    const mag = m?.ref.current, img = m?.imgRef.current
-    if (!mag || !img || !ptr) return
-    const size = m.size, zoom = m.zoom
-    mag.style.left = `${ptr.clientX + 24}px`
-    mag.style.top  = `${Math.max(10, ptr.clientY - size - 12)}px`
-    if (mag.width !== size * dpr) { mag.width = size * dpr; mag.height = size * dpr }
-    const mc = mag.getContext('2d')
-    mc.setTransform(dpr, 0, 0, dpr, 0, 0)
-    mc.clearRect(0, 0, size, size)
-    const sX = img.naturalWidth / dispW, sY = img.naturalHeight / dispH
-    const srcW = (size / zoom) * sX, srcH = (size / zoom) * sY
-    const srcX = ptr.x * sX - srcW / 2, srcY = ptr.y * sY - srcH / 2
-    mc.save()
-    mc.beginPath(); mc.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2); mc.clip()
-    mc.fillStyle = '#000'; mc.fillRect(0, 0, size, size)
-    mc.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, size, size)
-    // Büyüteçte işaretleri de göster (çizginin tam yerini görmek için)
-    mc.translate(size / 2, size / 2); mc.scale(zoom, zoom); mc.translate(-ptr.x, -ptr.y)
-    draw(mc, dispW, dispH, pointsRef.current, -1, 1 / zoom, true)   // inMag: noktalar içi boş halka
-    mc.restore()
-    drawMagCrosshair(mc, size, m.color)
+    const img = magnifier?.imgRef.current
+    if (!ptr || !img || !img.naturalWidth) return
+    const natPerCss = img.naturalWidth / dispW
+    paintLoupe(magnifier.ref.current, {
+      img, natX: ptr.x * natPerCss, natY: ptr.y * natPerCss, natPerCss,
+      clientX: ptr.clientX, clientY: ptr.clientY,
+      overlay: (lc, toLoupe, k) => {
+        const [ox, oy] = toLoupe(0, 0)
+        const z = k * natPerCss                       // ekran px → büyüteç px
+        lc.save(); lc.translate(ox, oy); lc.scale(z, z)
+        draw(lc, dispW, dispH, pointsRef.current, -1, 1 / z, true)   // inMag: noktalar içi boş halka
+        lc.restore()
+      },
+    })
   }, [canvasRef, dispW, dispH, draw, magnifier])
 
   const schedule = useCallback(() => {
@@ -179,6 +171,9 @@ export function usePointEditor({ canvasRef, dispW, dispH, maxPoints, replaceWhen
   }, [canvasRef, schedule])
 
   const onKeyDown = useCallback((e) => {
+    if (e.key === '+' || e.key === '=' || e.key === '-') {
+      e.preventDefault(); stepLoupeZoom(e.key === '-' ? -1 : 1); schedule(); return
+    }
     const idx = activeRef.current
     const pts = pointsRef.current
     if (idx < 0 || idx >= pts.length) return
@@ -190,7 +185,11 @@ export function usePointEditor({ canvasRef, dispW, dispH, maxPoints, replaceWhen
     const np = { x: Math.max(0, Math.min(dispW, q.x + delta[0])), y: Math.max(0, Math.min(dispH, q.y + delta[1])) }
     setPoints(pts.map((r, i) => (i === idx ? np : r)))
     activeRef.current = idx
-  }, [dispW, dispH, setPoints])
+    // Büyüteç ince ayar yapılan noktayı takip etsin
+    const rect = canvasRef.current?.getBoundingClientRect()
+    if (rect) pointerRef.current = { x: np.x, y: np.y, clientX: rect.left + np.x * rect.width / dispW, clientY: rect.top + np.y * rect.height / dispH }
+    setHovering(true)
+  }, [dispW, dispH, setPoints, schedule, canvasRef])
 
   const handlers = {
     onPointerDown,
@@ -200,6 +199,7 @@ export function usePointEditor({ canvasRef, dispW, dispH, maxPoints, replaceWhen
     onPointerEnter: () => setHovering(true),
     onPointerLeave: () => { if (!dragRef.current) setHovering(false) },
     onKeyDown,
+    onWheel: (e) => { if (wheelLoupeZoom(e)) schedule() },
     tabIndex: 0,
   }
 

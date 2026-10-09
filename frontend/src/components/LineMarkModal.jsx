@@ -1,9 +1,8 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { toNormLine, normPoints, denormPoints, CEPH_LINE_STYLE } from '../lib/annotation'
+import { loupeStyle } from '../lib/loupe'
 import { usePointEditor, distToLine } from '../lib/usePointEditor'
 
-const MAG_SIZE = 150
-const MAG_ZOOM = 4
 
 /** Compute where line through p1,p2 intersects image rect [0,W]×[0,H].
  *  Returns exactly 2 points (clamped to edges). */
@@ -83,7 +82,7 @@ export default function LineMarkModal({ file, onConfirm, onCancel, initialPoints
   const [dispH, setDispH]     = useState(0)
   const [saving, setSaving]   = useState(false)
 
-  const magnifier = useMemo(() => ({ ref: magRef, imgRef, size: MAG_SIZE, zoom: MAG_ZOOM, color: '#38BDF8' }), [])
+  const magnifier = useMemo(() => ({ ref: magRef, imgRef }), [])
   const { points, setPoints, showMagnifier, handlers } = usePointEditor({
     canvasRef, dispW, dispH, maxPoints: 2,
     draw: drawPreview, lineHit, dragLine, magnifier,
@@ -195,11 +194,7 @@ export default function LineMarkModal({ file, onConfirm, onCancel, initialPoints
       </div>
 
       {loaded && (
-        <canvas ref={magRef} style={{
-          position: 'fixed', left: -9999, top: 0, display: showMagnifier ? 'block' : 'none',
-          width: MAG_SIZE, height: MAG_SIZE, borderRadius: '50%',
-          pointerEvents: 'none', zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,0.8)',
-        }} />
+        <canvas ref={magRef} style={loupeStyle(showMagnifier)} />
       )}
     </div>
   )

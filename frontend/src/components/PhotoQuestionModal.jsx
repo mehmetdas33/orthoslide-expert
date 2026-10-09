@@ -1,9 +1,8 @@
 import { useRef, useState, useEffect, useCallback } from 'react'
-import { encodeImage, MIDLINE_STYLE, drawMagCrosshair } from '../lib/annotation'
+import { encodeImage, MIDLINE_STYLE } from '../lib/annotation'
+import { paintLoupe, wheelLoupeZoom, stepLoupeZoom, loupeStyle } from '../lib/loupe'
 
 const MM_OPTIONS = ['0', '0.5', '1', '1.5', '2', '2.5', '3', '3.5', '4', '4.5', '5']
-const MAG_SIZE   = 140
-const MAG_ZOOM   = 4
 
 // FDI tooth layout (left → right on screen)
 const UPPER_TEETH = [18,17,16,15,14,13,12,11, 21,22,23,24,25,26,27,28]
@@ -307,6 +306,11 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
       setMidlineX(midlineDragX.current)
     },
     onKeyDown: (e) => {
+      if (e.key === '+' || e.key === '=' || e.key === '-') {
+        e.preventDefault(); stepLoupeZoom(e.key === '-' ? -1 : 1)
+        if (magPtrRef.current && !magRafRef.current) magRafRef.current = requestAnimationFrame(paintMagnifier)
+        return
+      }
       if (midlineX === null || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return
       e.preventDefault()
       const step = (e.shiftKey ? 10 : 1) / (dispW || 1)
@@ -356,39 +360,30 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
     const isRef = ptr.src === 'ref'
     const img = isRef ? refImgRef.current : imgRef.current
     if (!img || !img.naturalWidth) return
-    const dpr = window.devicePixelRatio || 1
-    if (mag.width !== MAG_SIZE * dpr) { mag.width = MAG_SIZE * dpr; mag.height = MAG_SIZE * dpr }
-    mag.style.left = `${ptr.clientX + 22}px`
-    mag.style.top  = `${Math.max(10, ptr.clientY - MAG_SIZE - 14)}px`
-    const ctx = mag.getContext('2d')
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
     const cr = contentRect(img)
-    const natPerPx = img.naturalWidth / cr.w
-    // İmlecin altındaki doğal piksel — büyütecin TAM merkezi (kenarlarda kaydırma/kırpma yok)
-    const nx = (ptr.clientX - cr.left) * natPerPx
-    const ny = (ptr.clientY - cr.top)  * natPerPx
-    const srcW = (MAG_SIZE / MAG_ZOOM) * natPerPx
-    const srcX = nx - srcW / 2, srcY = ny - srcW / 2
-    const toMag = (x, y) => [(x - srcX) / srcW * MAG_SIZE, (y - srcY) / srcW * MAG_SIZE]
-    ctx.save()
-    ctx.beginPath(); ctx.arc(MAG_SIZE / 2, MAG_SIZE / 2, MAG_SIZE / 2, 0, Math.PI * 2); ctx.clip()
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, MAG_SIZE, MAG_SIZE)
-    ctx.drawImage(img, srcX, srcY, srcW, srcW, 0, 0, MAG_SIZE, MAG_SIZE)
-    // Büyüteçte orta hat çizgileri
-    ctx.strokeStyle = 'rgba(59,130,246,0.95)'; ctx.lineWidth = 1.5
-    if (isRef && refLine) {
-      const W = img.naturalWidth, H = img.naturalHeight
-      const [ax, ay] = toMag(refLine.x1 * W, refLine.y1 * H), [bx, by] = toMag(refLine.x2 * W, refLine.y2 * H)
-      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke()
-    } else if (!isRef && showMidlineMark) {
-      const mx = draggingRef.current ? midlineDragX.current : midlineX
-      if (mx !== null && mx !== undefined) {
-        const [lx] = toMag(mx * img.naturalWidth, 0)
-        ctx.beginPath(); ctx.moveTo(lx, 0); ctx.lineTo(lx, MAG_SIZE); ctx.stroke()
-      }
-    }
-    ctx.restore()
-    drawMagCrosshair(ctx, MAG_SIZE, '#38BDF8')
+    const natPerCss = img.naturalWidth / cr.w
+    paintLoupe(mag, {
+      img, natPerCss,
+      // İmlecin altındaki doğal piksel — büyütecin TAM merkezi
+      natX: (ptr.clientX - cr.left) * natPerCss,
+      natY: (ptr.clientY - cr.top)  * natPerCss,
+      clientX: ptr.clientX, clientY: ptr.clientY,
+      overlay: (ctx, toLoupe) => {
+        // Büyüteçte orta hat çizgileri
+        ctx.strokeStyle = 'rgba(59,130,246,0.95)'; ctx.lineWidth = 1.5
+        const W = img.naturalWidth, H = img.naturalHeight
+        if (isRef && refLine) {
+          const [ax, ay] = toLoupe(refLine.x1 * W, refLine.y1 * H), [bx, by] = toLoupe(refLine.x2 * W, refLine.y2 * H)
+          ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke()
+        } else if (!isRef && showMidlineMark) {
+          const mx = draggingRef.current ? midlineDragX.current : midlineX
+          if (mx !== null && mx !== undefined) {
+            const [lx, ty] = toLoupe(mx * W, 0), [, by] = toLoupe(mx * W, H)
+            ctx.beginPath(); ctx.moveTo(lx, ty); ctx.lineTo(lx, by); ctx.stroke()
+          }
+        }
+      },
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refLine, showMidlineMark, midlineX])
 
@@ -552,6 +547,7 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
                 cursor: 'crosshair', position: 'relative',
               }}
                 onMouseMove={makeMouseMove('ref')}
+                onWheel={(e) => { if (wheelLoupeZoom(e)) makeMouseMove('ref')(e) }}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
               >
@@ -596,6 +592,7 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
               touchAction: showMidlineMark ? 'none' : undefined, outline: 'none',
             }}
               onMouseMove={loaded ? makeMouseMove('main') : undefined}
+              onWheel={loaded ? (e) => { if (wheelLoupeZoom(e)) makeMouseMove('main')(e) } : undefined}
               onMouseEnter={loaded ? handleMouseEnter : undefined}
               onMouseLeave={loaded ? handleMouseLeave : undefined}
               {...(showMidlineMark && loaded ? { ...midlinePointer, tabIndex: 0 } : {})}
@@ -682,11 +679,7 @@ export default function PhotoQuestionModal({ file, questions, onConfirm, onCance
 
       {/* Magnifier */}
       {loaded && (
-        <canvas ref={magRef} style={{
-          position: 'fixed', left: -9999, top: 0, display: magVisible ? 'block' : 'none',
-          width: MAG_SIZE, height: MAG_SIZE, borderRadius: '50%',
-          pointerEvents: 'none', zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,0.8)',
-        }} />
+        <canvas ref={magRef} style={loupeStyle(magVisible)} />
       )}
     </div>
   )

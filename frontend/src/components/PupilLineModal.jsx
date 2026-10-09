@@ -1,9 +1,8 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react'
 import { lineThroughRect, toNormLine, normPoints, denormPoints, encodeImage, MIDLINE_STYLE } from '../lib/annotation'
+import { loupeStyle } from '../lib/loupe'
 import { usePointEditor, distToLine } from '../lib/usePointEditor'
 
-const MAG_SIZE = 150
-const MAG_ZOOM = 4
 
 // Perpendicular foot from p3 onto line p1→p2
 function cupidFoot(p1, p2, p3) {
@@ -211,7 +210,7 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
     if (anchor === 'cupid' && start.length === 3) return [start[0], start[1], clampPt({ x: start[2].x + dx, y: start[2].y + dy }, W, H)]
     return start.map((q, i) => (i < 2 ? clampPt({ x: q.x + dx, y: q.y + dy }, W, H) : q))
   }, [anchor])
-  const magnifier = useMemo(() => ({ ref: magCanvasRef, imgRef, size: MAG_SIZE, zoom: MAG_ZOOM, color: '#38BDF8' }), [])
+  const magnifier = useMemo(() => ({ ref: magCanvasRef, imgRef }), [])
 
   const { points, setPoints, showMagnifier, handlers, redraw } = usePointEditor({
     canvasRef, dispW, dispH,
@@ -459,11 +458,7 @@ export default function PupilLineModal({ file, onConfirm, onCancel, midlineOnly 
 
       {/* Magnifier */}
       {loaded && (
-        <canvas ref={magCanvasRef} style={{
-          position: 'fixed', left: -9999, top: 0, display: showMagnifier ? 'block' : 'none',
-          width: MAG_SIZE, height: MAG_SIZE, borderRadius: '50%',
-          pointerEvents: 'none', zIndex: 100, boxShadow: '0 4px 20px rgba(0,0,0,0.8)',
-        }} />
+        <canvas ref={magCanvasRef} style={loupeStyle(showMagnifier)} />
       )}
     </div>
   )
