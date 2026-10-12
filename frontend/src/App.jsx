@@ -58,6 +58,20 @@ const prepareImage = (file) => {
   return p
 }
 
+/**
+ * Molar & kanin sınıf cümlesi. "No" seçilince "Class No …" değil "No … " yazılır;
+ * seçilmeyen kısım cümleye eklenmez.
+ *   ('I','II') → "Class I molar & Class II canine relationship"
+ *   ('I','No') → "Class I molar & No canine relationship"
+ *   ('No','No') → "No molar & No canine relationship"
+ *   ('II', undefined) → "Class II molar relationship"
+ */
+const classRelationText = (molar, canine) => {
+  const part = (v, tooth) => (!v ? null : v === 'No' ? `No ${tooth}` : `Class ${v} ${tooth}`)
+  const parts = [part(molar, 'molar'), part(canine, 'canine')].filter(Boolean)
+  return parts.length ? `${parts.join(' & ')} relationship` : ''
+}
+
 const SLOT_QUESTIONS = {
   profile: [
     { type: 'buttons', label: 'Profil Tipi', placeholder: 'ph105', options: ['Concave', 'Straight', 'Convex'] },
@@ -319,18 +333,9 @@ function App() {
     // PH105: ensure "profile" suffix
     if (final.ph105) final.ph105 = final.ph105.trim() + ' profile'
 
-    // PH101: right molar & canine → combined text
-    if (final._rmolar || final._rcanine) {
-      const m = final._rmolar || '?'
-      const c = final._rcanine || '?'
-      final.ph101 = `Class ${m} molar & Class ${c} canine relationship`
-    }
-    // PH103: left molar & canine → combined text
-    if (final._lmolar || final._lcanine) {
-      const m = final._lmolar || '?'
-      const c = final._lcanine || '?'
-      final.ph103 = `Class ${m} molar & Class ${c} canine relationship`
-    }
+    // PH101 / PH103: sağ / sol molar & kanin → tek cümle
+    if (final._rmolar || final._rcanine) final.ph101 = classRelationText(final._rmolar, final._rcanine)
+    if (final._lmolar || final._lcanine) final.ph103 = classRelationText(final._lmolar, final._lcanine)
 
     // Auto-calculate totals — only when at least one input is filled
     const ph120v = (final.ph120 || '').trim()
@@ -403,7 +408,9 @@ function App() {
     if (finalPatientInfo.age_year || finalPatientInfo.age_month) {
       const yr = parseInt(finalPatientInfo.age_year) || 0
       const mo = parseInt(finalPatientInfo.age_month) || 0
-      finalPatientInfo.age = mo > 0 ? `${yr} yıl ${mo} ay` : `${yr} yıl`
+      // Slayt İngilizce: "25 years 3 months"
+      const yrTxt = `${yr} ${yr === 1 ? 'year' : 'years'}`
+      finalPatientInfo.age = mo > 0 ? `${yrTxt} ${mo} ${mo === 1 ? 'month' : 'months'}` : yrTxt
     }
     if (problemList) finalPatientInfo.problem_list = problemList.map(t => t.trim()).filter(Boolean)
     formData.append('patient_info', JSON.stringify(finalPatientInfo))

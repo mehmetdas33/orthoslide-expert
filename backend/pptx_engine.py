@@ -336,7 +336,7 @@ def find_and_replace_text(presentation, find_text, replace_text, status="normal"
 def patient_age_years(patient_info):
     """
     Yaş (yıl, ondalıklı). Uygulama 'age_year'/'age_month' gönderir; 'age' ise
-    "24 yıl 8 ay" gibi metindir — eskiden float("24 yıl") hata verip yaş hiç okunmuyordu.
+    "24 years 8 months" gibi metindir — eskiden float("24 yıl") hata verip yaş hiç okunmuyordu.
     """
     import re
     pi = patient_info or {}
@@ -356,6 +356,16 @@ def patient_age_years(patient_info):
 PROBLEM_LIST_SLIDE = 18          # 0-based index of "Diagnosis & Problem List"
 _PROBLEM_LIST_BOXES = {"TextBox 3", "TextBox 4", "TextBox 6", "TextBox 7"}
 _PROBLEM_BULLET_RGB = "0BD0D9"   # template'deki turkuaz nokta ikonlarının rengi
+
+
+def class_relation_text(molar, canine):
+    """Molar & kanin cümlesi; 'No' → "No molar"/"No canine" ("Class No" değil)."""
+    def part(v, tooth):
+        if not v:
+            return None
+        return f"No {tooth}" if v == "No" else f"Class {v} {tooth}"
+    parts = [p for p in (part(molar, "molar"), part(canine, "canine")) if p]
+    return (" & ".join(parts) + " relationship") if parts else ""
 
 
 def _dental_class_text(patient_info):
@@ -667,10 +677,12 @@ def generate_pptx(
             _cv = str(_pi.get(_canine_ph, '')).strip()
             if _mv in _class_set or _cv in _class_set:
                 # Old format: build combined sentence
-                _m = _mv if _mv in _class_set else '?'
-                _c = _cv if _cv in _class_set else '?'
-                _pi[_molar_ph] = f"Class {_m} molar & Class {_c} canine relationship"
+                _pi[_molar_ph] = class_relation_text(
+                    _mv if _mv in _class_set else None, _cv if _cv in _class_set else None)
                 _pi[_canine_ph] = ''   # canine ph is no longer needed separately
+            elif _mv:
+                # Yeni format (hazır cümle): eski sürümlerden gelebilecek "Class No" → "No"
+                _pi[_molar_ph] = _mv.replace("Class No ", "No ").replace("Class ? ", "")
         patient_info = _pi
 
         for _ph_key in _ANNOTATION_28PT:
